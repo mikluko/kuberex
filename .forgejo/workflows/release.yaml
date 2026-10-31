@@ -1,13 +1,12 @@
 name: release
 
-# Releases the arm64 image to sarak.sh when the newest CHANGELOG.md entry names
-# a version no tag names yet. arm64 only: the image boots Apple `container`
-# machines on Apple Silicon.
+# Releases the amd64 and arm64 image to sarak.sh when the newest CHANGELOG.md
+# entry names a version no tag names yet.
 #
-# On schedule, `pin` first moves Dockerfile's FROM to the newest 13.*.* release
-# of machine-debian and records it in CHANGELOG.md: cut as the next PATCH when
-# [Unreleased] is empty, which this run then releases, or added to [Unreleased]
-# when a release is already pending there.
+# On schedule, `pin` first moves Dockerfile's FROM to Debian's newest
+# trixie-YYYYMMDD snapshot and records it in CHANGELOG.md: cut as the next
+# PATCH when [Unreleased] is empty, which this run then releases, or added to
+# [Unreleased] when a release is already pending there.
 
 on:
   push:
@@ -33,8 +32,7 @@ enable-openid-connect: true
 env:
   REGISTRY: sarak.sh
   IMAGE: sarak.sh/${{ github.repository }}
-  BASE: sarak.sh/mikluko/machine-debian
-  BASE_REPO: mikluko/machine-debian
+  BASE: debian
 
 jobs:
   pin:
@@ -45,16 +43,16 @@ jobs:
     steps:
       - uses: https://github.com/actions/checkout@v5
 
-      - name: Resolve newest base release
+      - name: Resolve newest base snapshot
         id: base
         run: |
-          # A machine-debian release is created only after every image it names
-          # is pushed, so its tag is safe to build on.
-          version=$(curl -fsSL "$GITHUB_SERVER_URL/api/v1/repos/$BASE_REPO/releases?limit=50" \
-            | jq -r '.[] | select(.draft | not) | .tag_name | select(test("^v13\\.[0-9]+\\.[0-9]+$")) | ltrimstr("v")' \
-            | sort -V | tail -1)
+          # library/debian on Docker Hub: only exact trixie-YYYYMMDD tags, which
+          # excludes trixie, trixie-slim and trixie-YYYYMMDD-slim.
+          version=$(curl -fsSL 'https://hub.docker.com/v2/repositories/library/debian/tags?page_size=100&name=trixie-' \
+            | jq -r '.results[].name | select(test("^trixie-[0-9]{8}$"))' \
+            | sort | tail -1)
           if [ -z "$version" ]; then
-            echo "::error::no 13.*.* release of $BASE_REPO found"; exit 1
+            echo "::error::no trixie-YYYYMMDD tag of $BASE found"; exit 1
           fi
           current=$(sed -nE "s|^FROM $BASE:([^ ]+).*|\1|p" Dockerfile)
           echo "version=$version" >>"$GITHUB_OUTPUT"
@@ -100,11 +98,11 @@ jobs:
           fi
           git config user.name 'forgejo-actions'
           git config user.email 'actions@sarak.sh'
-          git commit -qam "Pin base to machine-debian:$VERSION"
+          git commit -qam "Pin base to $BASE:$VERSION"
           git push
           echo "sha=$(git rev-parse HEAD)" >>"$GITHUB_OUTPUT"
           if [ -z "$CUT" ]; then
-            echo "::notice::machine-debian:$VERSION recorded under [Unreleased]; it ships with the pending release"
+            echo "::notice::$BASE:$VERSION recorded under [Unreleased]; it ships with the pending release"
           fi
 
   plan:
@@ -150,12 +148,9 @@ jobs:
         env:
           VERSION: ${{ needs.plan.outputs.version }}
           SHA: ${{ needs.plan.outputs.sha }}
-          # netrc line for pkgs.superlogical.com, read by apt during the build.
-          REX_APT: ${{ secrets.REX_APT }}
         run: |
           docker buildx build --push \
-            --platform linux/arm64 \
-            --secret id=rex-apt,env=REX_APT \
+            --platform linux/amd64,linux/arm64 \
             --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
             --label "org.opencontainers.image.revision=$SHA" \
             --label "org.opencontainers.image.version=$VERSION" \

@@ -1,4 +1,4 @@
-module sarak.sh/mikluko/machine-rex
+module sarak.sh/mikluko/kuberex
 
 go 1.27.2
 

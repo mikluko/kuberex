@@ -1,0 +1,116 @@
+#!/bin/sh
+# kuberex install | run
+#
+# install: the init container. Overlays /usr, /etc and /var with upper dirs
+#   under /ov and installs rex, then KUBEREX_PACKAGES, into them with apt.
+# run: the server container. Mounts the same overlays over the same image,
+#   drops to rex with no capabilities and starts the Rex server.
+#
+# Both run as root in a user namespace with CAP_SYS_ADMIN and need /ov, the
+# shared emptyDir, and a writable /run.
+#
+# Extra apt config may be mounted read-only under /etc/kuberex/apt:
+# sources.list.d/ and keyrings/ are copied into /etc/apt before the install;
+# auth.conf.d/ is read in place and never copied.
+#
+#   REX_APT_AUTH          netrc for pkgs.superlogical.com (install; default /etc/rex-apt/auth.conf)
+#   REX_VERSION           rex version to install (default newest)
+#   KUBEREX_PACKAGES      space-separated apt package specs installed after rex (install; default none)
+#   TS_HOSTNAME           tailnet hostname (run; default kuberex)
+#   TS_AUTHKEY_FILE       one-time join key, read only while the node is not enrolled (run)
+#   TS_CONTROL_URL        control server (run; default Tailscale's)
+set -eu
+
+OVERLAID="/usr /etc /var"
+KEEP=/run/kuberex/keep
+
+# submounts prints the outermost mount points strictly below $1; an rbind of
+# each carries the ones nested in it.
+submounts() {
+  findmnt -rn -o TARGET | LC_ALL=C sort -u | while read -r t; do
+    case "$t" in "$1"/*) ;; *) continue ;; esac
+    nested=
+    for o in ${outer:-}; do
+      case "$t" in "$o"/*) nested=1 ;; esac
+    done
+    [ -n "$nested" ] && continue
+    outer="${outer:-} $t"
+    printf '%s\n' "$t"
+  done
+}
+
+# keep binds a mount point aside so the overlay above it can be re-covered.
+keep() {
+  mkdir -p "$(dirname "$KEEP$1")"
+  if [ -d "$1" ]; then mkdir -p "$KEEP$1"; elif [ ! -e "$KEEP$1" ]; then touch "$KEEP$1"; fi
+  mount --rbind "$1" "$KEEP$1"
+}
+
+restore() {
+  if [ -d "$KEEP$1" ]; then mkdir -p "$1"; else mkdir -p "$(dirname "$1")"; [ -e "$1" ] || touch "$1"; fi
+  mount --rbind "$KEEP$1" "$1"
+}
+
+# overlay mounts /ov/<dir> over each overlaid directory. userxattr is what lets
+# an overlay mounted in a user namespace remove and rename lower directories.
+overlay() {
+  for d in $OVERLAID; do
+    subs=$(submounts "$d")
+    for s in $subs; do keep "$s"; done
+    mkdir -p "/ov$d/upper" "/ov$d/work"
+    mount -t overlay "kuberex$d" \
+      -o "lowerdir=$d,upperdir=/ov$d/upper,workdir=/ov$d/work,userxattr" "$d"
+    for s in $subs; do restore "$s"; done
+  done
+}
+
+install_packages() {
+  auth=${REX_APT_AUTH:-/etc/rex-apt/auth.conf}
+  [ -r "$auth" ] || { echo "kuberex: $auth: no rex apt credential" >&2; exit 1; }
+  overlay
+  extra=/etc/kuberex/apt
+  for d in sources.list.d keyrings; do
+    for f in "$extra/$d"/*; do
+      [ -f "$f" ] || continue
+      mkdir -p "/etc/apt/$d"
+      cp -L "$f" "/etc/apt/$d/"
+    done
+  done
+  # Credentials are read where they are mounted, never copied into the overlay:
+  # netrc takes the rex file, netrcparts the extra directory.
+  set -- -o "Dir::Etc::netrc=$auth" -o "Dir::Etc::netrcparts=$extra/auth.conf.d"
+  apt-get "$@" update -q
+  DEBIAN_FRONTEND=noninteractive apt-get "$@" install -y -q --no-install-recommends --allow-downgrades \
+    "rex${REX_VERSION:+=$REX_VERSION}"
+  if [ -n "${KUBEREX_PACKAGES:-}" ]; then
+    # shellcheck disable=SC2086
+    DEBIAN_FRONTEND=noninteractive apt-get "$@" install -y -q --no-install-recommends --allow-downgrades \
+      $KUBEREX_PACKAGES
+  fi
+  rm -rf /var/lib/apt/lists/*
+}
+
+run_server() {
+  overlay
+  install -d -o rex -g rex -m 0750 /run/rex
+  set -- --tailscale --tailscale-hostname "${TS_HOSTNAME:-kuberex}"
+  if [ -n "${TS_AUTHKEY_FILE:-}" ] && [ -r "$TS_AUTHKEY_FILE" ]; then
+    set -- "$@" --tailscale-auth-key-file "$TS_AUTHKEY_FILE"
+  fi
+  HOME=/var/lib/rex USER=rex LOGNAME=rex
+  export HOME USER LOGNAME
+  exec setpriv --reuid=rex --regid=rex --init-groups \
+    --inh-caps=-all --ambient-caps=-all --bounding-set=-all --no-new-privs \
+    rex server run \
+      --listen /run/rex/server.sock \
+      --state-dir /var/lib/rex \
+      --socket-mode 0660 \
+      --log-format text \
+      "$@"
+}
+
+case "${1:-}" in
+  install) install_packages ;;
+  run) run_server ;;
+  *) echo "usage: kuberex install|run" >&2; exit 2 ;;
+esac
