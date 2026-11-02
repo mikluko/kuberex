@@ -8,6 +8,33 @@ A PATCH release with only a base image bump is cut automatically.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-02
+
+### Added
+
+- Rex `0.0.1793645657-gd018d2` from the Rex `snapshot` apt channel and
+  Claude Code `2.1.309-1` from Anthropic's `stable` apt channel, installed
+  in the image.
+
+### Changed
+
+- **Breaking:** the container runs as `rex` (uid 999) and its entrypoint
+  starts the Rex server directly; the pod needs no init container, no added
+  capabilities, no host user namespace setting and no AppArmor override. The
+  server starts on a read-only root filesystem when `/run/rex` and
+  `/var/lib/rex` are writable.
+
+### Removed
+
+- **Breaking:** `kuberex install`, `kuberex run`, the overlays at `/ov`,
+  `REX_APT_AUTH`, `REX_VERSION`, `KUBEREX_PACKAGES` and the apt config mount
+  at `/etc/kuberex/apt/`.
+
+### Fixed
+
+- `TS_CONTROL_URL` reaches the server; the tailnet node enrolls with that
+  control server.
+
 ## [0.2.0] - 2026-10-31
 
 ### Added

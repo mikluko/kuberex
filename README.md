@@ -1,32 +1,33 @@
 # kuberex
 
 kuberex is the wiring that runs the [Superlogical Rex](https://www.superlogical.com/rex/docs/installation.md) server on Kubernetes.
-It ships as the container image `sarak.sh/mikluko/kuberex`.
-The image holds no Rex binary: at pod start, `kuberex install` installs the `rex` package from the Rex apt repository,
-and `kuberex run` starts the server on the tailnet.
+It ships as the container image `sarak.sh/mikluko/kuberex`, for `linux/amd64` and `linux/arm64`.
 
-## Provide the Rex repository credential
+## What the image holds
 
-The Rex apt repository at `pkgs.superlogical.com` admits only Rex testers, so the pod needs your repository credential.
+The image is built on `debian:trixie` and installs two packages at versions pinned in the `Dockerfile`:
 
-1. Log in with Discord on [Installing on Linux](https://www.superlogical.com/rex/docs/linux/installation.md).
-   The page then shows the install commands, with your user name and password for `pkgs.superlogical.com`.
-1. Write the credential to a file named `auth.conf`, in the netrc format apt reads:
+| Package       | Apt channel                                               | Pin                   |
+| ------------- | --------------------------------------------------------- | --------------------- |
+| `rex`         | `snapshot` at `https://pkgs.superlogical.com/rex/apt`     | `REX_VERSION`         |
+| `claude-code` | `stable` at `https://downloads.claude.ai/claude-code/apt` | `CLAUDE_CODE_VERSION` |
 
-   ```
-   machine pkgs.superlogical.com login <user-name> password <password>
-   ```
+A new Rex or Claude Code version reaches the pod as a new image release.
 
-   Replace `<user-name>` and `<password>` with the values from the Rex page.
-1. Create a Secret from the file, in the namespace the pod runs in:
+## Run it
 
-   ```shell
-   kubectl create secret generic rex-apt --from-file=auth.conf -n <namespace>
-   ```
+The container runs as `rex` (uid and gid 999) and starts the Rex server on the tailnet as an embedded Tailscale node.
+It needs no added capabilities, and the server starts on a read-only root filesystem when these paths are writable:
 
-1. Mount the Secret at `/etc/rex-apt` in the container that runs `kuberex install`.
-   The default value of `REX_APT_AUTH` is `/etc/rex-apt/auth.conf`; set it to read the file from another path.
+| Path           | Holds                                                   |
+| -------------- | ------------------------------------------------------- |
+| `/var/lib/rex` | Rex state, the tailnet node state and the home of `rex` |
+| `/run/rex`     | the server sockets                                      |
 
-apt reads the file as its own `_apt` user, so the file must be world-readable.
-The default mode of a Secret volume, 0644, is enough.
-The credential stays on the mount: `kuberex install` passes its path to apt and never copies it into the installed system.
+The server takes its tailnet settings from the environment:
+
+| Variable          | Meaning                             |
+| ----------------- | ----------------------------------- |
+| `TS_HOSTNAME`     | tailnet hostname, default `kuberex` |
+| `TS_AUTHKEY_FILE` | file holding a one-time join key    |
+| `TS_CONTROL_URL`  | control server, default Tailscale's |

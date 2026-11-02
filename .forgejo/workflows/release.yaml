@@ -105,9 +105,11 @@ jobs:
             echo "::notice::$BASE:$VERSION recorded under [Unreleased]; it ships with the pending release"
           fi
 
+  # Forgejo skips a job whose need was skipped unless its condition calls
+  # always(); pin is skipped on push.
   plan:
     needs: pin
-    if: ${{ !failure() && !cancelled() }}
+    if: ${{ always() && needs.pin.result != 'failure' && needs.pin.result != 'cancelled' }}
     runs-on: ubuntu-latest
     outputs:
       sha: ${{ steps.ref.outputs.sha }}

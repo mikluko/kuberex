@@ -1,0 +1,23 @@
+#!/bin/sh
+# kuberex starts the Rex server on the tailnet as the calling user, with its
+# socket in /run/rex and its state in /var/lib/rex.
+#
+#   TS_HOSTNAME       tailnet hostname (default kuberex)
+#   TS_AUTHKEY_FILE   one-time join key, read only while the node is not enrolled
+#   TS_CONTROL_URL    control server (default Tailscale's)
+set -eu
+
+set -- --tailscale --tailscale-hostname "${TS_HOSTNAME:-kuberex}"
+if [ -n "${TS_AUTHKEY_FILE:-}" ] && [ -r "$TS_AUTHKEY_FILE" ]; then
+  set -- "$@" --tailscale-auth-key-file "$TS_AUTHKEY_FILE"
+fi
+if [ -n "${TS_CONTROL_URL:-}" ]; then
+  set -- "$@" --tailscale-control-url "$TS_CONTROL_URL"
+fi
+
+exec rex server run \
+  --listen /run/rex/server.sock \
+  --state-dir /var/lib/rex \
+  --socket-mode 0660 \
+  --log-format text \
+  "$@"
