@@ -8,6 +8,15 @@ A PATCH release with only a base image bump is cut automatically.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-02
+
+### Added
+
+- Helm chart `oci://sarak.sh/mikluko/charts/kuberex`, released at the
+  image's version: one Rex server pod with its tailnet settings, the volume
+  of `/var/lib/rex`, a ServiceAccount and an optional CiliumNetworkPolicy
+  limiting egress to DNS, the kube-apiserver and outside the cluster.
+
 ## [0.3.0] - 2026-11-02
 
 ### Added

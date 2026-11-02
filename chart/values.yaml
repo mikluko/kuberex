@@ -1,0 +1,52 @@
+image:
+  # Image of the Rex server.
+  repository: sarak.sh/mikluko/kuberex
+  # Image tag; the chart's appVersion when empty.
+  tag: ""
+  # Pull policy of the image.
+  pullPolicy: IfNotPresent
+
+# Image pull secrets of the pod.
+imagePullSecrets: []
+
+serviceAccount:
+  # Creates the ServiceAccount; when false, the named one must exist.
+  create: true
+  # Name of the ServiceAccount; the release name when empty.
+  name: ""
+  # Mounts the ServiceAccount token into the pod.
+  automountToken: false
+
+tailscale:
+  # TS_HOSTNAME, the server's tailnet hostname.
+  hostname: kuberex
+  # TS_CONTROL_URL, the control server; Tailscale's when empty.
+  controlURL: ""
+  authKey:
+    # Secret holding the one-time join key, mounted as TS_AUTHKEY_FILE; none when empty, for a node already enrolled.
+    existingSecret: ""
+    # Key of the join key in the Secret.
+    key: authkey
+
+# Volume source of /var/lib/rex, the server's state, its tailnet node state and the home of rex, rendered as given: such as hostPath or persistentVolumeClaim; an emptyDir when empty.
+stateVolume: {}
+
+networkPolicy:
+  # Renders a CiliumNetworkPolicy allowing egress only to kube-dns, the kube-apiserver and outside the cluster.
+  enabled: false
+
+# Extra environment variables of the server and its terminals, name to value.
+env: {}
+
+# Resources of the container.
+resources: {}
+# Annotations of the pod.
+podAnnotations: {}
+# Labels of the pod.
+podLabels: {}
+# Node selector of the pod.
+nodeSelector: {}
+# Tolerations of the pod.
+tolerations: []
+# Affinity of the pod.
+affinity: {}

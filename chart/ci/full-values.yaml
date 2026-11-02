@@ -1,0 +1,36 @@
+image:
+  tag: "0.3.0"
+serviceAccount:
+  name: rex
+  automountToken: true
+tailscale:
+  hostname: kuberex
+  controlURL: https://controlplane.tailscale.com
+  authKey:
+    existingSecret: rex-tailscale
+stateVolume:
+  hostPath:
+    path: /srv/rex
+    type: Directory
+networkPolicy:
+  enabled: true
+env:
+  TZ: UTC
+resources:
+  requests:
+    cpu: "1"
+    memory: 2Gi
+  limits:
+    cpu: "4"
+    memory: 8Gi
+podAnnotations:
+  example.com/note: full
+podLabels:
+  example.com/tier: workstation
+nodeSelector:
+  kubernetes.io/hostname: bulgakov
+tolerations:
+  - key: sarak.sh/baremetal
+    operator: Exists
+  - key: sarak.sh/workstation
+    operator: Exists

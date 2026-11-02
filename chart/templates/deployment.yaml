@@ -1,0 +1,113 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "kuberex.labels" . | nindent 4 }}
+spec:
+  # One server owns the state in /var/lib/rex and the tailnet node.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "kuberex.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kuberex.selector" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "kuberex.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountToken }}
+      enableServiceLinks: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: rex
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: TS_HOSTNAME
+              value: {{ .Values.tailscale.hostname | quote }}
+            {{- with .Values.tailscale.controlURL }}
+            - name: TS_CONTROL_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if .Values.tailscale.authKey.existingSecret }}
+            - name: TS_AUTHKEY_FILE
+              value: /etc/rex-tailscale/authkey
+            {{- end }}
+            {{- range $k, $v := .Values.env }}
+            - name: {{ $k }}
+              value: {{ $v | toString | quote }}
+            {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: state
+              mountPath: /var/lib/rex
+            - name: run
+              mountPath: /run/rex
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.tailscale.authKey.existingSecret }}
+            - name: authkey
+              mountPath: /etc/rex-tailscale
+              readOnly: true
+            {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: state
+          {{- with .Values.stateVolume }}
+          {{- toYaml . | nindent 10 }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        {{- with .Values.tailscale.authKey.existingSecret }}
+        - name: authkey
+          secret:
+            secretName: {{ . }}
+            defaultMode: 0440
+            items:
+              - key: {{ $.Values.tailscale.authKey.key }}
+                path: authkey
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

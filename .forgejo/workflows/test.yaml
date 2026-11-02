@@ -7,6 +7,7 @@ on:
       - "**.go"
       - go.mod
       - go.sum
+      - chart/**
       - .forgejo/workflows/test.yaml
   pull_request:
 
@@ -22,3 +23,40 @@ jobs:
           go-version-file: go.mod
       - run: go vet ./...
       - run: go test ./...
+
+  chart:
+    runs-on: ubuntu-latest
+    env:
+      KUBECONFORM_VERSION: v0.8.0
+      CILIUM_SCHEMA: https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/cilium.io/ciliumnetworkpolicy_v2.json
+    steps:
+      - uses: https://github.com/actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: https://github.com/azure/setup-helm@v5
+        with:
+          version: v4.3.1
+      - name: Install kubeconform
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/$KUBECONFORM_VERSION/kubeconform-linux-amd64.tar.gz" |
+            tar -xz -C "$RUNNER_TEMP/bin" kubeconform
+          echo "$RUNNER_TEMP/bin" >>"$GITHUB_PATH"
+      - name: CRD schemas
+        run: |
+          # Go's regexp rejects the \uXXXX escapes in the Cilium schema's
+          # patterns, and kubeconform then reports the schema as missing.
+          mkdir -p "$RUNNER_TEMP/schemas/cilium.io"
+          curl -fsSL "$CILIUM_SCHEMA" |
+            jq 'walk(if type == "object" and (.pattern | type) == "string"
+                then .pattern |= gsub("\\\\u(?<h>[0-9a-fA-F]{4})"; "\\x{\(.h)}") else . end)' \
+            >"$RUNNER_TEMP/schemas/cilium.io/ciliumnetworkpolicy_v2.json"
+      - name: Chart lints and renders valid manifests
+        run: |
+          for f in chart/ci/*.yaml; do
+            helm lint --strict chart -f "$f"
+            helm template kuberex chart -f "$f" |
+              kubeconform -strict -summary \
+                -schema-location default \
+                -schema-location "$RUNNER_TEMP/schemas/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json"
+          done
