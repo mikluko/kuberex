@@ -162,8 +162,10 @@ jobs:
             --tag "$IMAGE:latest" \
             .
 
+  # After the image: a cluster following 0.x would pull a chart naming an
+  # image that is not there yet.
   chart:
-    needs: plan
+    needs: [plan, image]
     if: ${{ !failure() && !cancelled() && needs.plan.outputs.due == 'true' }}
     runs-on: ubuntu-latest
     steps:
