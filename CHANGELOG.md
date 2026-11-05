@@ -8,6 +8,13 @@ A PATCH release with only a base image bump is cut automatically.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-05
+
+### Added
+
+- Terminal tools from Debian: `htop`, `mc`, `ripgrep`, `fd-find` (as
+  `fdfind`), `fzf`, `tree`, `bat` (as `batcat`), `rsync`, `zip` and `ncdu`.
+
 ## [0.6.0] - 2026-11-05
 
 ### Added

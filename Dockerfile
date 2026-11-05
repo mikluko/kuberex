@@ -23,7 +23,8 @@ RUN --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get install -y --no-install-recommends \
         ca-certificates dumb-init util-linux libpam0g locales zsh \
         build-essential git openssh-client golang nodejs npm \
-        curl wget jq less vim procps iproute2 iputils-ping dnsutils unzip xz-utils file
+        curl wget jq less vim procps iproute2 iputils-ping dnsutils unzip xz-utils file \
+        htop mc ripgrep fd-find fzf tree bat rsync zip ncdu
 
 COPY apt/keyrings/ /etc/apt/keyrings/
 COPY apt/sources.list.d/ /etc/apt/sources.list.d/
