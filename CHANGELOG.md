@@ -8,6 +8,13 @@ A PATCH release with only a base image bump is cut automatically.
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-11-05
+
+### Fixed
+
+- `TMPDIR` and `TMP` are set: the entrypoint makes `/tmp/user/<uid>` for
+  every account, which `pam_tmpdir` cannot create with the account's uid.
+
 ## [0.12.0] - 2026-11-05
 
 ### Added

@@ -68,6 +68,17 @@ create_accounts() {
   done
 }
 
+# create_tmpdirs makes /tmp/user/<uid>, pam_tmpdir's TMPDIR, for every account
+# accounts file $1 names. The login server runs PAM with the account's uid,
+# which can create neither that directory nor the root-owned /tmp/user that
+# pam_tmpdir requires above it.
+create_tmpdirs() {
+  install -d -o 0 -g 0 -m 0711 /tmp/user
+  for name in $(kuberex-accounts "$1"); do
+    install -d -o "$name" -g "$name" -m 0700 "/tmp/user/$(id -u "$name")"
+  done
+}
+
 if [ "$(id -u)" != 0 ]; then
   echo "kuberex: the login server runs as root" >&2
   exit 1
@@ -87,6 +98,7 @@ chmod 0755 /run/rex
 # account may delete or replace another's files, /tmp/user included.
 chown 0:0 /tmp
 chmod 01777 /tmp
+create_tmpdirs "$REX_LOGIN_SERVER_ACCOUNTS"
 
 exec rex login-server \
   --accounts "$REX_LOGIN_SERVER_ACCOUNTS" \
