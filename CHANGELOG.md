@@ -8,6 +8,18 @@ A PATCH release with only a base image bump is cut automatically.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-05
+
+### Added
+
+- `zsh`, the login shell of `rex`.
+
+### Fixed
+
+- A terminal opened in the server starts `zsh`: the login shell of `rex` was
+  `nologin`, so every terminal printed "This account is currently not
+  available." and closed.
+
 ## [0.5.0] - 2026-11-05
 
 ### Added

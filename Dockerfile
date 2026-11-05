@@ -14,14 +14,14 @@ ARG DEBIAN_FRONTEND=noninteractive
 # postinst of the rex package keeps an existing account; a fixed uid keeps the
 # ownership of the host directory under /var/lib/rex stable across releases.
 RUN groupadd --system --gid 999 rex && \
-    useradd --system --uid 999 --gid rex --home-dir /var/lib/rex --shell /usr/sbin/nologin rex && \
+    useradd --system --uid 999 --gid rex --home-dir /var/lib/rex --shell /usr/bin/zsh rex && \
     install -d -o rex -g rex -m 0750 /var/lib/rex /run/rex
 
 RUN --mount=type=cache,target=/var/lib/apt,sharing=locked \
     --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update -yq && \
     apt-get install -y --no-install-recommends \
-        ca-certificates dumb-init util-linux libpam0g locales \
+        ca-certificates dumb-init util-linux libpam0g locales zsh \
         build-essential git openssh-client golang nodejs npm \
         curl wget jq less vim procps iproute2 iputils-ping dnsutils unzip xz-utils file
 
@@ -43,7 +43,7 @@ ENV HOME=/var/lib/rex \
     XDG_RUNTIME_DIR=/run/rex \
     REX_RUNTIME_DIR=/run/rex \
     GODEBUG= \
-    SHELL=/bin/bash
+    SHELL=/usr/bin/zsh
 
 USER rex
 WORKDIR /var/lib/rex
