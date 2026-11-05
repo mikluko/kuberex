@@ -8,6 +8,18 @@ A PATCH release with only a base image bump is cut automatically.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-05
+
+### Added
+
+- Each account gets a private temporary directory, `/tmp/user/<uid>`, as
+  `TMPDIR` and `TMP`, from `libpam-tmpdir`.
+
+### Fixed
+
+- `/tmp` is owned by root with mode `1777`, so an account can no longer
+  delete or replace another account's files there.
+
 ## [0.11.0] - 2026-11-05
 
 ### Added

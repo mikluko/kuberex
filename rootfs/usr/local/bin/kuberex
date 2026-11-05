@@ -83,6 +83,10 @@ fi
 create_accounts "$REX_LOGIN_SERVER_ACCOUNTS"
 # Each account reaches its runtime directory below /run/rex.
 chmod 0755 /run/rex
+# The pod's fsGroup leaves an emptyDir /tmp at 2777 in that group, where any
+# account may delete or replace another's files, /tmp/user included.
+chown 0:0 /tmp
+chmod 01777 /tmp
 
 exec rex login-server \
   --accounts "$REX_LOGIN_SERVER_ACCOUNTS" \

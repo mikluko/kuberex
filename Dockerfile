@@ -30,7 +30,7 @@ RUN --mount=type=cache,target=/var/lib/apt,sharing=locked \
     --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update -yq && \
     apt-get install -y --no-install-recommends \
-        ca-certificates dumb-init util-linux libpam0g locales zsh \
+        ca-certificates dumb-init util-linux libpam0g libpam-tmpdir locales zsh \
         build-essential git openssh-client golang nodejs npm \
         curl wget jq less vim procps iproute2 iputils-ping dnsutils unzip xz-utils file \
         htop mc ripgrep fd-find fzf tree bat rsync zip ncdu

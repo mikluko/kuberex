@@ -35,7 +35,11 @@ At each start, in this order, it:
 
 1. copies `$KUBEREX_APT/sources/*.sources` to `/etc/apt/sources.list.d` and `$KUBEREX_APT/keyrings/*` to `/etc/apt/keyrings`, and, when `$KUBEREX_APT/packages` is not empty, runs `apt-get update` and `apt-get install` with its words as arguments
 1. creates every account the accounts file names, except `root` and `"*"`, with zsh and a home in `/home/<account>`; a home that exists keeps the uid that owns it, and a new home takes the next free uid from 1000
-1. opens `/run/rex` to every account for traversal, and starts the login server with its runtime root there
+1. opens `/run/rex` to every account for traversal
+1. makes `/tmp` owned by root with mode `1777`
+1. starts the login server with its runtime root in `/run/rex`
+
+Each account's server runs in a PAM session, where `pam_tmpdir` sets `TMPDIR` and `TMP` to `/tmp/user/<uid>`, a directory only the account can open.
 
 A client picks an account with `http://<account>@<host>:<port>`; without one, the file's `defaults` decide.
 
