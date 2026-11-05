@@ -1,10 +1,20 @@
-{{- if .Values.loginServer.enabled }}
+{{- if not (.Values.accounts).accounts }}
+{{- fail "accounts.accounts names no account: the login server would admit nobody" }}
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Release.Name }}-login-server
+  name: {{ .Release.Name }}
   labels:
     {{- include "kuberex.labels" . | nindent 4 }}
 data:
-  accounts.jsonc: {{ .Values.loginServer.accounts | toJson | quote }}
-{{- end }}
+  accounts.jsonc: {{ .Values.accounts | toJson | quote }}
+  {{- range $name, $content := .Values.apt.sources }}
+  source-{{ $name }}: {{ $content | quote }}
+  {{- end }}
+  {{- range $name, $content := .Values.apt.keyrings }}
+  keyring-{{ $name }}: {{ $content | quote }}
+  {{- end }}
+  {{- with .Values.apt.packages }}
+  packages: {{ join "\n" . | quote }}
+  {{- end }}

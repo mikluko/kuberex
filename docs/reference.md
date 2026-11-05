@@ -9,81 +9,59 @@ Each release is also tagged `<major>.<minor>` and `latest`.
 
 The image installs these packages:
 
-| Package         | Source                                                                | Version                                  |
-| --------------- | --------------------------------------------------------------------- | ---------------------------------------- |
-| `rex`           | `snapshot` channel of `https://pkgs.superlogical.com/rex/apt`         | pinned as `REX_VERSION` in `Dockerfile`  |
-| `claude-code`   | `stable` channel of `https://downloads.claude.ai/claude-code/apt`     | pinned as `CLAUDE_CODE_VERSION`          |
-| terminal tools  | Debian: `zsh`, `git`, `vim`, `htop`, `mc`, `ripgrep`, `fd-find`, `fzf`, `bat`, `jq` and others | the Debian snapshot the image is built on |
+| Package        | Source                                                            | Version                                   |
+| -------------- | ----------------------------------------------------------------- | ----------------------------------------- |
+| `rex`          | `snapshot` channel of `https://pkgs.superlogical.com/rex/apt`     | pinned as `REX_VERSION` in `Dockerfile`   |
+| `claude-code`  | `stable` channel of `https://downloads.claude.ai/claude-code/apt` | pinned as `CLAUDE_CODE_VERSION`           |
+| terminal tools | Debian: `zsh`, `git`, `vim`, `htop`, `mc`, `ripgrep`, `fd-find`, `fzf`, `bat`, `jq` and others | the Debian snapshot the image is built on |
 
 A new Rex or Claude Code version reaches the pod as a new image release.
 The full package list is in the [`Dockerfile`](../Dockerfile).
 
-### User and paths
+### Entrypoint
 
-The container runs as `rex`, uid and gid 999, with the login shell zsh.
-It needs no added capabilities, and runs on a read-only root filesystem when these paths are writable:
+The entrypoint starts [`rex login-server`](https://www.superlogical.com/rex/docs/linux/login-server.md) on the tailnet through a `tailscaled` already on it.
+It must run as root, with the capabilities `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `KILL`, `SETGID` and `SETUID`, on a writable root filesystem.
+It reads:
 
-| Path           | Holds                                                  |
-| -------------- | ------------------------------------------------------ |
-| `/var/lib/rex` | Rex state, the tailnet node state, the home of `rex`   |
-| `/run/rex`     | the server sockets                                     |
+| Variable                    | Meaning                                                                          |
+| --------------------------- | -------------------------------------------------------------------------------- |
+| `REX_LOGIN_SERVER_ACCOUNTS` | path of the login server's [accounts file](https://www.superlogical.com/rex/docs/linux/login-server.md#accounts-file); required |
+| `TS_SOCKET`                 | LocalAPI socket of the `tailscaled`; required                                     |
+| `REX_TAILNET_PORT`          | tailnet port the login server serves plain HTTP on; default `80`                  |
+| `KUBEREX_APT`               | directory of apt additions; none when unset                                       |
 
-### Environment
+At each start, in this order, it:
 
-The server joins the tailnet as Rex's built-in Tailscale node and serves HTTPS at `https://<hostname>.<tailnet>.ts.net`:
+1. copies `$KUBEREX_APT/sources/*.sources` to `/etc/apt/sources.list.d` and `$KUBEREX_APT/keyrings/*` to `/etc/apt/keyrings`, and, when `$KUBEREX_APT/packages` is not empty, runs `apt-get update` and `apt-get install` with its words as arguments
+1. creates every account the accounts file names, except `root` and `"*"`, with zsh and a home in `/home/<account>`; a home that exists keeps the uid that owns it, and a new home takes the next free uid from 1000
+1. opens `/run/rex` to every account for traversal, and starts the login server with its runtime root there
 
-| Variable          | Meaning                                         |
-| ----------------- | ----------------------------------------------- |
-| `TS_HOSTNAME`     | tailnet hostname; default `kuberex`             |
-| `TS_AUTHKEY_FILE` | file holding a one-time auth key                |
-| `TS_CONTROL_URL`  | control server; default Tailscale's             |
-
-With `TS_SOCKET` set, the server serves plain HTTP on the tailnet through a `tailscaled` already on it, and ignores the three variables above:
-
-| Variable           | Meaning                                    |
-| ------------------ | ------------------------------------------ |
-| `TS_SOCKET`        | LocalAPI socket of that `tailscaled`       |
-| `REX_TAILNET_PORT` | tailnet port; default `80`                 |
-
-In both modes only the node's owner is let in, unless:
-
-| Variable                    | Meaning                                                 |
-| --------------------------- | ------------------------------------------------------- |
-| `REX_ALLOW_TAILNET_MEMBERS` | `true` lets in every tailnet member the ACLs let through |
-
-### Login server
-
-With `REX_LOGIN_SERVER_ACCOUNTS` set to the path of an [accounts file](https://www.superlogical.com/rex/docs/linux/login-server.md#accounts-file), the container starts `rex login-server` on the tailnet through `TS_SOCKET` instead of one server as `rex`.
-`REX_ALLOW_TAILNET_MEMBERS` does not apply; the accounts file decides who gets in.
-
-- It must run as root, with the capabilities `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `KILL`, `SETGID` and `SETUID`, on a writable root filesystem.
-- At each start, it creates every account the file names, except `root` and `"*"`, with zsh and a home in `/home/<account>`.
-- A home that exists keeps the uid that owns it; a new home takes the next free uid from 1000.
-- `/run/rex` is opened to every account for traversal.
-
-A client picks an account with `http://<account>@<host>`; without one, the file's `defaults` decide.
+A client picks an account with `http://<account>@<host>:<port>`; without one, the file's `defaults` decide.
 
 ## Chart
 
 `oci://sarak.sh/mikluko/charts/kuberex`, released with the image at the same version.
-It runs one StatefulSet of one replica, and a ServiceAccount.
-[`chart/values.yaml`](../chart/values.yaml) documents every value; these map onto the image:
+It runs one StatefulSet of one replica, a ConfigMap and a ServiceAccount.
+The pod runs `tailscaled` from `tailscale/tailscale` as a sidecar in userspace networking, with its state in `/var/lib/rex/tailscaled`.
+[`chart/values.yaml`](../chart/values.yaml) documents every value; these are the ones a deployment sets:
 
 | Value                              | Effect                                                                     |
 | ---------------------------------- | -------------------------------------------------------------------------- |
+| `accounts`                         | the accounts file, rendered as JSON; it must name an account               |
+| `tailscale.hostname`               | the node's tailnet hostname; default `kuberex`                             |
+| `tailscale.controlURL`             | the control server; default Tailscale's                                    |
+| `tailscale.authKey.existingSecret` | Secret holding the auth key, under the key `tailscale.authKey.key`, default `authkey` |
+| `tailscale.port`                   | `REX_TAILNET_PORT`; below 1024 the pod sets `net.ipv4.ip_unprivileged_port_start` to it |
+| `apt.sources`                      | apt sources, file name without `.sources` to deb822 content                |
+| `apt.keyrings`                     | keyrings for them, file name in `/etc/apt/keyrings` to content            |
+| `apt.packages`                     | `apt-get install` arguments                                                |
 | `persistence.size`                 | size of the PersistentVolumeClaim `state-<release>-0` the StatefulSet creates for `/var/lib/rex`; default `10Gi` |
 | `persistence.storageClassName`     | storage class of that claim; default the cluster's                         |
 | `stateVolume`                      | volume source of `/var/lib/rex` in place of that claim, rendered as given, such as `hostPath` |
-| `tailscale.hostname`               | `TS_HOSTNAME`                                                              |
-| `tailscale.controlURL`             | `TS_CONTROL_URL`                                                           |
-| `tailscale.authKey.existingSecret` | Secret holding the auth key, under the key `tailscale.authKey.key`, default `authkey` |
-| `tailscale.allowTailnetMembers`    | `REX_ALLOW_TAILNET_MEMBERS`                                                |
-| `tailscale.sidecar.enabled`        | runs `tailscaled` from `tailscale/tailscale` as a sidecar in userspace networking, with its state in `/var/lib/rex/tailscaled`, and sets `TS_SOCKET` |
-| `tailscale.sidecar.port`           | `REX_TAILNET_PORT`; below 1024 the pod sets `net.ipv4.ip_unprivileged_port_start` to it |
-| `loginServer.enabled`              | runs the login server as above; needs `tailscale.sidecar.enabled`          |
-| `loginServer.accounts`             | the accounts file, rendered as JSON                                        |
 | `networkPolicy.enabled`            | a CiliumNetworkPolicy allowing egress only to kube-dns, the kube-apiserver and outside the cluster |
 
+The chart mounts `home/` of the state volume at `/home`, so homes outlive the pod.
+A change to `accounts` or `apt` restarts the pod.
 The claim outlives the release: `helm uninstall` leaves it, and a new install of the same release name takes it back.
 A StatefulSet cannot change its claim template, so changing `persistence` on an installed release needs the StatefulSet deleted with `kubectl delete statefulset <release> --cascade=orphan` first.
-With `loginServer.enabled`, the chart mounts `home/` of the state volume at `/home`, so homes outlive the pod.

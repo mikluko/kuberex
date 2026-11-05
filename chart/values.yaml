@@ -18,37 +18,37 @@ serviceAccount:
   automountToken: false
 
 tailscale:
-  # TS_HOSTNAME, the server's tailnet hostname.
+  # The node's tailnet hostname.
   hostname: kuberex
-  # TS_CONTROL_URL, the control server; Tailscale's when empty.
+  # The control server, such as a Headscale server; Tailscale's when empty.
   controlURL: ""
   authKey:
-    # Secret holding the one-time join key; none when empty, for a node already enrolled.
+    # Secret holding the one-time auth key; none when empty, for a node already enrolled.
     existingSecret: ""
-    # Key of the join key in the Secret.
+    # Key of the auth key in the Secret.
     key: authkey
-  # REX_ALLOW_TAILNET_MEMBERS: admits every tailnet member the ACLs let through, not only the node's owner. A node joined with a tagged key has no owner and needs it.
-  allowTailnetMembers: false
-  sidecar:
-    # Joins the tailnet through a tailscaled container in userspace networking, its state in /var/lib/rex/tailscaled, and serves the server as plain HTTP on port; for a control server that issues no HTTPS certificates, such as Headscale. When false, the server joins as an embedded node and serves HTTPS.
-    enabled: false
-    # REX_TAILNET_PORT, the server's tailnet port; below 1024 the pod sets net.ipv4.ip_unprivileged_port_start to it.
-    port: 80
-    image:
-      # Image of tailscaled.
-      repository: tailscale/tailscale
-      # Image tag of tailscaled.
-      tag: v1.104.4
-      # Pull policy of the image.
-      pullPolicy: IfNotPresent
-    # Resources of the tailscaled container.
-    resources: {}
+  # Tailnet port the login server serves plain HTTP on; below 1024 the pod sets net.ipv4.ip_unprivileged_port_start to it.
+  port: 80
+  image:
+    # Image of tailscaled, which runs as a sidecar in userspace networking with its state in /var/lib/rex/tailscaled.
+    repository: tailscale/tailscale
+    # Image tag of tailscaled.
+    tag: v1.104.4
+    # Pull policy of the image.
+    pullPolicy: IfNotPresent
+  # Resources of the tailscaled container.
+  resources: {}
 
-loginServer:
-  # Runs rex login-server as root instead of one server as rex: each caller gets the server of the account the accounts file maps it to. Needs tailscale.sidecar.enabled; tailscale.allowTailnetMembers does not apply, the accounts file decides who gets in.
-  enabled: false
-  # The accounts file, rendered as JSON: version, accounts and defaults. See https://www.superlogical.com/rex/docs/linux/login-server#accounts-file. The pod creates every account it names, but root and "*", at start, with zsh and a home in /home/<name>, kept in home/ of the state volume; an existing home keeps its owner's uid.
-  accounts: {}
+# The login server's accounts file, rendered as JSON: version, accounts and defaults; it decides who gets in and as which account. See https://www.superlogical.com/rex/docs/linux/login-server#accounts-file. The pod creates every account it names, but root and "*", at start, with zsh and a home in /home/<name>, kept in home/ of the state volume; an existing home keeps its owner's uid.
+accounts: {}
+
+apt:
+  # Apt sources added at every start, file name without .sources to deb822 content. A Signed-By path names a keyring in /etc/apt/keyrings.
+  sources: {}
+  # Keyrings for those sources, file name in /etc/apt/keyrings to its content, such as an ASCII-armored key.
+  keyrings: {}
+  # Packages installed at every start, as apt-get install arguments, such as name or name=version.
+  packages: []
 
 persistence:
   # Size of the PersistentVolumeClaim the StatefulSet creates for /var/lib/rex, the server's state, its tailnet node state and the homes. A StatefulSet cannot change its claim template, so a change needs the StatefulSet deleted with --cascade=orphan first.

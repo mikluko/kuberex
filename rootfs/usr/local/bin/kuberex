@@ -1,32 +1,38 @@
 #!/bin/sh
-# kuberex starts the Rex server on the tailnet as the calling user, with its
-# socket in /run/rex and its state in /var/lib/rex.
+# kuberex starts the Rex login server on the tailnet. The login server serves
+# each caller from a Rex server running as the account its accounts file maps
+# the caller to. kuberex runs as root and reads:
 #
-# The server joins the tailnet as an embedded node, which serves HTTPS with
-# certificates from the control server:
+#   REX_LOGIN_SERVER_ACCOUNTS  the login server's accounts file
+#   TS_SOCKET                  LocalAPI socket of a tailscaled on the tailnet
+#   REX_TAILNET_PORT           tailnet port of the server (default 80)
+#   KUBEREX_APT                optional directory of apt additions installed
+#                              before the server starts: *.sources files,
+#                              keyrings referenced by them, and a packages
+#                              file of apt-get install arguments
 #
-#   TS_HOSTNAME       tailnet hostname (default kuberex)
-#   TS_AUTHKEY_FILE   one-time join key, read only while the node is not enrolled
-#   TS_CONTROL_URL    control server (default Tailscale's)
-#
-# or, with TS_SOCKET set, serves plain HTTP through a tailscaled already on the
-# tailnet, for a control server that issues no certificates, such as Headscale:
-#
-#   TS_SOCKET         LocalAPI socket of that tailscaled
-#   REX_TAILNET_PORT  tailnet port of the server (default 80); the server also
-#                     binds it on 127.0.0.1, so a port below 1024 needs
-#                     net.ipv4.ip_unprivileged_port_start at or below it
-#
-# Either way only the node's owner is admitted, unless
-#
-#   REX_ALLOW_TAILNET_MEMBERS=true   admits every tailnet member the ACLs let through
-#
-# With REX_LOGIN_SERVER_ACCOUNTS set to a login server accounts file, it runs
-# as root and starts the login server on the tailnet through TS_SOCKET instead,
-# which serves each caller from the server of the account the file maps the
-# caller to. Every account the file names, but root and "*", is created at
-# start with zsh and a home in /home/<name>.
+# Every account the accounts file names, but root and "*", is created at start
+# with zsh and a home in /home/<name>.
 set -eu
+
+# install_packages adds the sources and keyrings in directory $1 to apt and
+# installs the packages its packages file lists. Nothing is kept: the root
+# filesystem is the container's, so this runs at every start.
+install_packages() {
+  if [ -d "$1/sources" ]; then
+    cp "$1"/sources/*.sources /etc/apt/sources.list.d/
+  fi
+  if [ -d "$1/keyrings" ]; then
+    cp "$1"/keyrings/* /etc/apt/keyrings/
+  fi
+  if [ ! -s "$1/packages" ]; then
+    return
+  fi
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -q
+  # shellcheck disable=SC2046 # one apt-get argument per word of the file
+  apt-get install -y -q --no-install-recommends $(cat "$1/packages")
+}
 
 # create_account creates account $1 unless it exists. An existing home keeps
 # its owner's uid; a new one takes the next free uid from 1000.
@@ -47,20 +53,10 @@ create_account() {
   fi
 }
 
-# login_server creates the accounts accounts file $1 names and execs the login
-# server. Accounts with a home are created first, so a new account cannot take
-# the uid an existing home belongs to. /run/rex is opened for traversal, so
-# each account reaches its runtime directory below it.
-login_server() {
-  if [ "$(id -u)" != 0 ]; then
-    echo "kuberex: the login server runs as root" >&2
-    exit 1
-  fi
-  if [ -z "${TS_SOCKET:-}" ]; then
-    echo "kuberex: the login server listens on the tailnet through TS_SOCKET" >&2
-    exit 1
-  fi
-  chmod 0755 /run/rex
+# create_accounts creates the accounts accounts file $1 names. Accounts with a
+# home are created first, so a new account cannot take the uid an existing
+# home belongs to.
+create_accounts() {
   names=$(kuberex-accounts "$1")
   for name in $names; do
     if [ -d "/home/$name" ]; then
@@ -70,39 +66,27 @@ login_server() {
   for name in $names; do
     create_account "$name"
   done
-  exec rex login-server \
-    --accounts "$1" \
-    --runtime-root /run/rex \
-    --extra-listen "tailnet://:${REX_TAILNET_PORT:-80}" \
-    --tailscaled-socket "$TS_SOCKET" \
-    --log-format text
 }
 
-if [ -n "${REX_LOGIN_SERVER_ACCOUNTS:-}" ]; then
-  login_server "$REX_LOGIN_SERVER_ACCOUNTS"
+if [ "$(id -u)" != 0 ]; then
+  echo "kuberex: the login server runs as root" >&2
+  exit 1
+fi
+if [ -z "${REX_LOGIN_SERVER_ACCOUNTS:-}" ] || [ -z "${TS_SOCKET:-}" ]; then
+  echo "kuberex: REX_LOGIN_SERVER_ACCOUNTS and TS_SOCKET are required" >&2
+  exit 1
 fi
 
-if [ -n "${TS_SOCKET:-}" ]; then
-  set -- --extra-listen "tailnet://:${REX_TAILNET_PORT:-80}" --tailscaled-socket "$TS_SOCKET"
-  if [ "${REX_ALLOW_TAILNET_MEMBERS:-}" = true ]; then
-    set -- "$@" --tailnet-allow-identified
-  fi
-else
-  set -- --tailscale --tailscale-hostname "${TS_HOSTNAME:-kuberex}"
-  if [ -n "${TS_AUTHKEY_FILE:-}" ] && [ -r "$TS_AUTHKEY_FILE" ]; then
-    set -- "$@" --tailscale-auth-key-file "$TS_AUTHKEY_FILE"
-  fi
-  if [ -n "${TS_CONTROL_URL:-}" ]; then
-    set -- "$@" --tailscale-control-url "$TS_CONTROL_URL"
-  fi
-  if [ "${REX_ALLOW_TAILNET_MEMBERS:-}" = true ]; then
-    set -- "$@" --tailscale-allow-tailnet-members
-  fi
+if [ -n "${KUBEREX_APT:-}" ]; then
+  install_packages "$KUBEREX_APT"
 fi
+create_accounts "$REX_LOGIN_SERVER_ACCOUNTS"
+# Each account reaches its runtime directory below /run/rex.
+chmod 0755 /run/rex
 
-exec rex server run \
-  --listen /run/rex/server.sock \
-  --state-dir /var/lib/rex \
-  --socket-mode 0660 \
-  --log-format text \
-  "$@"
+exec rex login-server \
+  --accounts "$REX_LOGIN_SERVER_ACCOUNTS" \
+  --runtime-root /run/rex \
+  --extra-listen "tailnet://:${REX_TAILNET_PORT:-80}" \
+  --tailscaled-socket "$TS_SOCKET" \
+  --log-format text

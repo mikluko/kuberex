@@ -1,13 +1,42 @@
 image:
-  tag: "0.3.0"
+  tag: "0.11.0"
 serviceAccount:
   name: rex
   automountToken: true
 tailscale:
   hostname: kuberex
-  controlURL: https://controlplane.tailscale.com
+  controlURL: https://headscale.example.com
   authKey:
     existingSecret: rex-tailscale
+  port: 80
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+accounts:
+  version: 1
+  accounts:
+    alice:
+      principals: ["tailscale:alice@example.com"]
+    bob:
+      principals: ["tailscale:bob@example.com"]
+  defaults:
+    tailscale:alice@example.com: alice
+apt:
+  sources:
+    example: |
+      Types: deb
+      URIs: https://apt.example.com/debian
+      Suites: trixie
+      Components: main
+      Signed-By: /etc/apt/keyrings/example.asc
+  keyrings:
+    example.asc: |
+      -----BEGIN PGP PUBLIC KEY BLOCK-----
+      example
+      -----END PGP PUBLIC KEY BLOCK-----
+  packages:
+    - example-tool
 stateVolume:
   hostPath:
     path: /srv/rex
@@ -28,9 +57,7 @@ podAnnotations:
 podLabels:
   example.com/tier: workstation
 nodeSelector:
-  kubernetes.io/hostname: bulgakov
+  kubernetes.io/hostname: example
 tolerations:
-  - key: sarak.sh/baremetal
-    operator: Exists
-  - key: sarak.sh/workstation
+  - key: example.com/workstation
     operator: Exists

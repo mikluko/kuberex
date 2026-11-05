@@ -5,9 +5,6 @@ metadata:
   labels:
     {{- include "kuberex.labels" . | nindent 4 }}
 spec:
-  {{- if and .Values.loginServer.enabled (not .Values.tailscale.sidecar.enabled) }}
-  {{- fail "loginServer.enabled needs tailscale.sidecar.enabled" }}
-  {{- end }}
   # One server owns the state in /var/lib/rex and the tailnet node.
   replicas: 1
   selector:
@@ -20,16 +17,12 @@ spec:
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- if or .Values.podAnnotations .Values.loginServer.enabled }}
       annotations:
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- if .Values.loginServer.enabled }}
-        # Accounts are created at start, so a change restarts the pod.
-        checksum/login-server: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-        {{- end }}
-      {{- end }}
+        # Accounts and packages are set up at start, so a change restarts the pod.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ include "kuberex.serviceAccountName" . }}
       automountServiceAccountToken: {{ .Values.serviceAccount.automountToken }}
@@ -46,13 +39,12 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
-        {{- if and .Values.tailscale.sidecar.enabled (lt (int .Values.tailscale.sidecar.port) 1024) }}
+        {{- if lt (int .Values.tailscale.port) 1024 }}
         sysctls:
           - name: net.ipv4.ip_unprivileged_port_start
-            value: {{ .Values.tailscale.sidecar.port | quote }}
+            value: {{ .Values.tailscale.port | quote }}
         {{- end }}
-      {{- with .Values.tailscale.sidecar }}
-      {{- if .enabled }}
+      {{- with .Values.tailscale }}
       initContainers:
         - name: tailscale
           image: {{ .image.repository }}:{{ .image.tag }}
@@ -99,46 +91,29 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
       {{- end }}
-      {{- end }}
       containers:
         - name: rex
           image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
-            {{- if .Values.tailscale.sidecar.enabled }}
             - name: TS_SOCKET
               value: /run/tailscale/tailscaled.sock
             - name: REX_TAILNET_PORT
-              value: {{ .Values.tailscale.sidecar.port | quote }}
-            {{- else }}
-            - name: TS_HOSTNAME
-              value: {{ .Values.tailscale.hostname | quote }}
-            {{- with .Values.tailscale.controlURL }}
-            - name: TS_CONTROL_URL
-              value: {{ . | quote }}
-            {{- end }}
-            {{- if .Values.tailscale.authKey.existingSecret }}
-            - name: TS_AUTHKEY_FILE
-              value: /etc/rex-tailscale/authkey
-            {{- end }}
-            {{- end }}
-            {{- if .Values.loginServer.enabled }}
+              value: {{ .Values.tailscale.port | quote }}
             - name: REX_LOGIN_SERVER_ACCOUNTS
-              value: /etc/kuberex/login-server/accounts.jsonc
-            {{- end }}
-            {{- if .Values.tailscale.allowTailnetMembers }}
-            - name: REX_ALLOW_TAILNET_MEMBERS
-              value: "true"
+              value: /etc/kuberex/accounts.jsonc
+            {{- if or .Values.apt.sources .Values.apt.packages }}
+            - name: KUBEREX_APT
+              value: /etc/kuberex/apt
             {{- end }}
             {{- range $k, $v := .Values.env }}
             - name: {{ $k }}
               value: {{ $v | toString | quote }}
             {{- end }}
+          # Root that creates the accounts, installs packages, and starts and
+          # stops each account's server.
           securityContext:
             allowPrivilegeEscalation: false
-            {{- if .Values.loginServer.enabled }}
-            # Root that creates the accounts in /etc, enters /var/lib/rex
-            # whoever owns it, and starts and stops each account's server.
             runAsNonRoot: false
             runAsUser: 0
             runAsGroup: 0
@@ -146,34 +121,27 @@ spec:
             capabilities:
               drop: [ALL]
               add: [CHOWN, DAC_OVERRIDE, FOWNER, KILL, SETGID, SETUID]
-            {{- else }}
-            readOnlyRootFilesystem: true
-            capabilities:
-              drop: [ALL]
-            {{- end }}
           volumeMounts:
             - name: state
               mountPath: /var/lib/rex
-            {{- if .Values.loginServer.enabled }}
             - name: state
               mountPath: /home
               subPath: home
-            - name: login-server
-              mountPath: /etc/kuberex/login-server
+            - name: config
+              mountPath: /etc/kuberex/accounts.jsonc
+              subPath: accounts.jsonc
+              readOnly: true
+            {{- if or .Values.apt.sources .Values.apt.packages }}
+            - name: apt
+              mountPath: /etc/kuberex/apt
               readOnly: true
             {{- end }}
             - name: run
               mountPath: /run/rex
             - name: tmp
               mountPath: /tmp
-            {{- if .Values.tailscale.sidecar.enabled }}
             - name: tailscale
               mountPath: /run/tailscale
-            {{- else if .Values.tailscale.authKey.existingSecret }}
-            - name: authkey
-              mountPath: /etc/rex-tailscale
-              readOnly: true
-            {{- end }}
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -185,27 +153,31 @@ spec:
         {{- end }}
         - name: run
           emptyDir: {}
-        {{- if .Values.loginServer.enabled }}
-        - name: login-server
+        - name: config
           configMap:
-            name: {{ .Release.Name }}-login-server
+            name: {{ .Release.Name }}
+        {{- if or .Values.apt.sources .Values.apt.packages }}
+        - name: apt
+          configMap:
+            name: {{ .Release.Name }}
+            items:
+              {{- range $name, $_ := .Values.apt.sources }}
+              - key: source-{{ $name }}
+                path: sources/{{ $name }}.sources
+              {{- end }}
+              {{- range $name, $_ := .Values.apt.keyrings }}
+              - key: keyring-{{ $name }}
+                path: keyrings/{{ $name }}
+              {{- end }}
+              {{- if .Values.apt.packages }}
+              - key: packages
+                path: packages
+              {{- end }}
         {{- end }}
         - name: tmp
           emptyDir: {}
-        {{- if .Values.tailscale.sidecar.enabled }}
         - name: tailscale
           emptyDir: {}
-        {{- else }}
-        {{- with .Values.tailscale.authKey.existingSecret }}
-        - name: authkey
-          secret:
-            secretName: {{ . }}
-            defaultMode: 0440
-            items:
-              - key: {{ $.Values.tailscale.authKey.key }}
-                path: authkey
-        {{- end }}
-        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

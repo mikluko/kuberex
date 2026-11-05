@@ -47,16 +47,10 @@ RUN --mount=type=cache,target=/var/lib/apt,sharing=locked \
 COPY rootfs/ /
 COPY --from=build /out/kuberex-accounts /usr/local/bin/kuberex-accounts
 
-# The runtime dir holds the socket and is where rex commands in the server's
-# terminals look for it. Go aborts on a removed GODEBUG value, so none is
-# inherited.
-ENV HOME=/var/lib/rex \
-    XDG_RUNTIME_DIR=/run/rex \
-    REX_RUNTIME_DIR=/run/rex \
+# rex commands look for the login server's sockets in the runtime dir. Go
+# aborts on a removed GODEBUG value, so none is inherited.
+ENV REX_RUNTIME_DIR=/run/rex \
     GODEBUG= \
     SHELL=/usr/bin/zsh
-
-USER rex
-WORKDIR /var/lib/rex
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--", "/usr/local/bin/kuberex"]

@@ -8,6 +8,31 @@ A PATCH release with only a base image bump is cut automatically.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-05
+
+### Added
+
+- `KUBEREX_APT`, a directory of apt sources, keyrings and packages installed
+  at every start, and chart values `apt.sources`, `apt.keyrings` and
+  `apt.packages` that fill it.
+
+### Changed
+
+- **Breaking:** the login server is the only mode. The container runs as root
+  and needs `REX_LOGIN_SERVER_ACCOUNTS` and `TS_SOCKET`, and the chart always
+  runs the `tailscaled` sidecar.
+- **Breaking:** chart value `loginServer.accounts` is now `accounts`, and must
+  name an account; `tailscale.sidecar.port`, `.image` and `.resources` are now
+  `tailscale.port`, `tailscale.image` and `tailscale.resources`.
+
+### Removed
+
+- **Breaking:** the single server as `rex` and Rex's built-in Tailscale node,
+  with `TS_HOSTNAME`, `TS_AUTHKEY_FILE`, `TS_CONTROL_URL` and
+  `REX_ALLOW_TAILNET_MEMBERS`.
+- **Breaking:** chart values `loginServer.enabled`,
+  `tailscale.sidecar.enabled` and `tailscale.allowTailnetMembers`.
+
 ## [0.10.0] - 2026-11-05
 
 ### Added
