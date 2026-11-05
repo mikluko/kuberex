@@ -8,6 +8,20 @@ A PATCH release with only a base image bump is cut automatically.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-05
+
+### Added
+
+- With `TS_SOCKET` set, the server serves plain HTTP on the tailnet at port
+  `REX_TAILNET_PORT` (default `80`) through the `tailscaled` behind that
+  LocalAPI socket, instead of joining as an embedded node; this works with a
+  control server that issues no HTTPS certificates, such as Headscale.
+- `REX_ALLOW_TAILNET_MEMBERS=true` admits every tailnet member the ACLs let
+  through, not only the node's owner.
+- Chart values `tailscale.sidecar.*`, running `tailscaled` from
+  `tailscale/tailscale:v1.104.4` as a sidecar in userspace networking with
+  its state in `/var/lib/rex/tailscaled`, and `tailscale.allowTailnetMembers`.
+
 ## [0.4.0] - 2026-11-02
 
 ### Added

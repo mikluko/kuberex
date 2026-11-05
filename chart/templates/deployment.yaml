@@ -39,11 +39,71 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
+        {{- if and .Values.tailscale.sidecar.enabled (lt (int .Values.tailscale.sidecar.port) 1024) }}
+        sysctls:
+          - name: net.ipv4.ip_unprivileged_port_start
+            value: {{ .Values.tailscale.sidecar.port | quote }}
+        {{- end }}
+      {{- with .Values.tailscale.sidecar }}
+      {{- if .enabled }}
+      initContainers:
+        - name: tailscale
+          image: {{ .image.repository }}:{{ .image.tag }}
+          imagePullPolicy: {{ .image.pullPolicy }}
+          restartPolicy: Always
+          env:
+            - name: TS_USERSPACE
+              value: "true"
+            - name: TS_KUBE_SECRET
+              value: ""
+            - name: TS_STATE_DIR
+              value: /var/lib/rex/tailscaled
+            - name: TS_SOCKET
+              value: /run/tailscale/tailscaled.sock
+            - name: TS_HOSTNAME
+              value: {{ $.Values.tailscale.hostname | quote }}
+            - name: TS_AUTH_ONCE
+              value: "true"
+            {{- with $.Values.tailscale.controlURL }}
+            - name: TS_EXTRA_ARGS
+              value: {{ printf "--login-server=%s" . | quote }}
+            {{- end }}
+            {{- with $.Values.tailscale.authKey.existingSecret }}
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: {{ $.Values.tailscale.authKey.key }}
+            {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: state
+              mountPath: /var/lib/rex
+            - name: tailscale
+              mountPath: /run/tailscale
+            - name: tmp
+              mountPath: /tmp
+          {{- with .resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- end }}
+      {{- end }}
       containers:
         - name: rex
           image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
+            {{- if .Values.tailscale.sidecar.enabled }}
+            - name: TS_SOCKET
+              value: /run/tailscale/tailscaled.sock
+            - name: REX_TAILNET_PORT
+              value: {{ .Values.tailscale.sidecar.port | quote }}
+            {{- else }}
             - name: TS_HOSTNAME
               value: {{ .Values.tailscale.hostname | quote }}
             {{- with .Values.tailscale.controlURL }}
@@ -53,6 +113,11 @@ spec:
             {{- if .Values.tailscale.authKey.existingSecret }}
             - name: TS_AUTHKEY_FILE
               value: /etc/rex-tailscale/authkey
+            {{- end }}
+            {{- end }}
+            {{- if .Values.tailscale.allowTailnetMembers }}
+            - name: REX_ALLOW_TAILNET_MEMBERS
+              value: "true"
             {{- end }}
             {{- range $k, $v := .Values.env }}
             - name: {{ $k }}
@@ -70,7 +135,10 @@ spec:
               mountPath: /run/rex
             - name: tmp
               mountPath: /tmp
-            {{- if .Values.tailscale.authKey.existingSecret }}
+            {{- if .Values.tailscale.sidecar.enabled }}
+            - name: tailscale
+              mountPath: /run/tailscale
+            {{- else if .Values.tailscale.authKey.existingSecret }}
             - name: authkey
               mountPath: /etc/rex-tailscale
               readOnly: true
@@ -90,6 +158,10 @@ spec:
           emptyDir: {}
         - name: tmp
           emptyDir: {}
+        {{- if .Values.tailscale.sidecar.enabled }}
+        - name: tailscale
+          emptyDir: {}
+        {{- else }}
         {{- with .Values.tailscale.authKey.existingSecret }}
         - name: authkey
           secret:
@@ -98,6 +170,7 @@ spec:
             items:
               - key: {{ $.Values.tailscale.authKey.key }}
                 path: authkey
+        {{- end }}
         {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:

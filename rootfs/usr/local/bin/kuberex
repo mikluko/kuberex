@@ -2,17 +2,42 @@
 # kuberex starts the Rex server on the tailnet as the calling user, with its
 # socket in /run/rex and its state in /var/lib/rex.
 #
+# The server joins the tailnet as an embedded node, which serves HTTPS with
+# certificates from the control server:
+#
 #   TS_HOSTNAME       tailnet hostname (default kuberex)
 #   TS_AUTHKEY_FILE   one-time join key, read only while the node is not enrolled
 #   TS_CONTROL_URL    control server (default Tailscale's)
+#
+# or, with TS_SOCKET set, serves plain HTTP through a tailscaled already on the
+# tailnet, for a control server that issues no certificates, such as Headscale:
+#
+#   TS_SOCKET         LocalAPI socket of that tailscaled
+#   REX_TAILNET_PORT  tailnet port of the server (default 80); the server also
+#                     binds it on 127.0.0.1, so a port below 1024 needs
+#                     net.ipv4.ip_unprivileged_port_start at or below it
+#
+# Either way only the node's owner is admitted, unless
+#
+#   REX_ALLOW_TAILNET_MEMBERS=true   admits every tailnet member the ACLs let through
 set -eu
 
-set -- --tailscale --tailscale-hostname "${TS_HOSTNAME:-kuberex}"
-if [ -n "${TS_AUTHKEY_FILE:-}" ] && [ -r "$TS_AUTHKEY_FILE" ]; then
-  set -- "$@" --tailscale-auth-key-file "$TS_AUTHKEY_FILE"
-fi
-if [ -n "${TS_CONTROL_URL:-}" ]; then
-  set -- "$@" --tailscale-control-url "$TS_CONTROL_URL"
+if [ -n "${TS_SOCKET:-}" ]; then
+  set -- --extra-listen "tailnet://:${REX_TAILNET_PORT:-80}" --tailscaled-socket "$TS_SOCKET"
+  if [ "${REX_ALLOW_TAILNET_MEMBERS:-}" = true ]; then
+    set -- "$@" --tailnet-allow-identified
+  fi
+else
+  set -- --tailscale --tailscale-hostname "${TS_HOSTNAME:-kuberex}"
+  if [ -n "${TS_AUTHKEY_FILE:-}" ] && [ -r "$TS_AUTHKEY_FILE" ]; then
+    set -- "$@" --tailscale-auth-key-file "$TS_AUTHKEY_FILE"
+  fi
+  if [ -n "${TS_CONTROL_URL:-}" ]; then
+    set -- "$@" --tailscale-control-url "$TS_CONTROL_URL"
+  fi
+  if [ "${REX_ALLOW_TAILNET_MEMBERS:-}" = true ]; then
+    set -- "$@" --tailscale-allow-tailnet-members
+  fi
 fi
 
 exec rex server run \

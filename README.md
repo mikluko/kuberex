@@ -32,6 +32,17 @@ The server takes its tailnet settings from the environment:
 | `TS_AUTHKEY_FILE` | file holding a one-time join key    |
 | `TS_CONTROL_URL`  | control server, default Tailscale's |
 
+The embedded node serves HTTPS with certificates from the control server, which Headscale does not issue.
+With `TS_SOCKET` set, the server instead serves plain HTTP on the tailnet through a `tailscaled` that is already on it, and ignores the three variables above:
+
+| Variable                    | Meaning                                                             |
+| --------------------------- | ------------------------------------------------------------------- |
+| `TS_SOCKET`                 | LocalAPI socket of that `tailscaled`                                |
+| `REX_TAILNET_PORT`          | tailnet port, default `80`                                          |
+| `REX_ALLOW_TAILNET_MEMBERS` | `true` admits every member the ACLs let through, not only the owner |
+
+`REX_ALLOW_TAILNET_MEMBERS` applies to the embedded node too. A node joined with a tagged key has no owner, so it admits nobody without it.
+
 ## Deploy it with Helm
 
 The chart `oci://sarak.sh/mikluko/charts/kuberex` is released with the image, at the same version, and runs one server pod as above.
@@ -42,7 +53,9 @@ The chart `oci://sarak.sh/mikluko/charts/kuberex` is released with the image, at
 | `stateVolume`                      | volume source of `/var/lib/rex`, default an `emptyDir`       |
 | `tailscale.hostname`               | `TS_HOSTNAME`                                                |
 | `tailscale.controlURL`             | `TS_CONTROL_URL`                                             |
-| `tailscale.authKey.existingSecret` | Secret with the join key, mounted as `TS_AUTHKEY_FILE`       |
+| `tailscale.authKey.existingSecret` | Secret with the join key                                     |
+| `tailscale.allowTailnetMembers`    | `REX_ALLOW_TAILNET_MEMBERS`                                  |
+| `tailscale.sidecar.enabled`        | joins through a `tailscaled` sidecar instead, see below      |
 | `networkPolicy.enabled`            | CiliumNetworkPolicy: egress to DNS, kube-apiserver and world |
 | `nodeSelector`, `tolerations`      | placement of the pod                                         |
 
@@ -50,4 +63,15 @@ The chart `oci://sarak.sh/mikluko/charts/kuberex` is released with the image, at
 helm install rex oci://sarak.sh/mikluko/charts/kuberex --version 0.4.0 \
   --set tailscale.authKey.existingSecret=rex-tailscale \
   --set stateVolume.hostPath.path=/srv/rex
+```
+
+With `tailscale.sidecar.enabled`, the pod runs `tailscaled` from `tailscale/tailscale` as a sidecar in userspace networking, keeping its node state in `/var/lib/rex/tailscaled`.
+The sidecar joins the tailnet with the join key and the control server, and the server listens on the tailnet at `http://<hostname>:<tailscale.sidecar.port>`:
+
+```sh
+helm install rex oci://sarak.sh/mikluko/charts/kuberex \
+  --set tailscale.controlURL=https://headscale.example.com \
+  --set tailscale.authKey.existingSecret=rex-tailscale \
+  --set tailscale.allowTailnetMembers=true \
+  --set tailscale.sidecar.enabled=true
 ```

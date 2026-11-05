@@ -23,10 +23,26 @@ tailscale:
   # TS_CONTROL_URL, the control server; Tailscale's when empty.
   controlURL: ""
   authKey:
-    # Secret holding the one-time join key, mounted as TS_AUTHKEY_FILE; none when empty, for a node already enrolled.
+    # Secret holding the one-time join key; none when empty, for a node already enrolled.
     existingSecret: ""
     # Key of the join key in the Secret.
     key: authkey
+  # REX_ALLOW_TAILNET_MEMBERS: admits every tailnet member the ACLs let through, not only the node's owner. A node joined with a tagged key has no owner and needs it.
+  allowTailnetMembers: false
+  sidecar:
+    # Joins the tailnet through a tailscaled container in userspace networking, its state in /var/lib/rex/tailscaled, and serves the server as plain HTTP on port; for a control server that issues no HTTPS certificates, such as Headscale. When false, the server joins as an embedded node and serves HTTPS.
+    enabled: false
+    # REX_TAILNET_PORT, the server's tailnet port; below 1024 the pod sets net.ipv4.ip_unprivileged_port_start to it.
+    port: 80
+    image:
+      # Image of tailscaled.
+      repository: tailscale/tailscale
+      # Image tag of tailscaled.
+      tag: v1.104.4
+      # Pull policy of the image.
+      pullPolicy: IfNotPresent
+    # Resources of the tailscaled container.
+    resources: {}
 
 # Volume source of /var/lib/rex, the server's state, its tailnet node state and the home of rex, rendered as given: such as hostPath or persistentVolumeClaim; an emptyDir when empty.
 stateVolume: {}
