@@ -1,0 +1,28 @@
+# Runs only on the GitHub mirror: Forgejo reads .github/workflows only where
+# .forgejo/workflows does not exist.
+name: Lockdown
+
+on:
+  issues:
+    types: opened
+  pull_request_target:
+    types: opened
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  lockdown:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: dessant/repo-lockdown@17c2cc64a91eff426f242b05dd523c6f098889b6 # v5.0.2
+        with:
+          issue-comment: >
+            This repository is a read-only mirror of https://sarak.sh/mikluko/kuberex.
+            Please open the issue there.
+          pr-comment: >
+            This repository is a read-only mirror of https://sarak.sh/mikluko/kuberex.
+            Please open the pull request there.
+          skip-closed-issue-comment: true
+          skip-closed-pr-comment: true

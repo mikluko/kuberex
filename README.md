@@ -2,6 +2,7 @@
 
 kuberex is the wiring that runs the [Superlogical Rex](https://www.superlogical.com/rex/docs/installation.md) server on Kubernetes.
 It ships as the container image `sarak.sh/mikluko/kuberex`, for `linux/amd64` and `linux/arm64`.
+Development happens at [sarak.sh/mikluko/kuberex](https://sarak.sh/mikluko/kuberex); [github.com/mikluko/kuberex](https://github.com/mikluko/kuberex) is a read-only mirror that closes issues and pull requests opened there.
 
 ## What the image holds
 
