@@ -50,7 +50,13 @@ loginServer:
   # The accounts file, rendered as JSON: version, accounts and defaults. See https://www.superlogical.com/rex/docs/linux/login-server#accounts-file. The pod creates every account it names, but root and "*", at start, with zsh and a home in /home/<name>, kept in home/ of the state volume; an existing home keeps its owner's uid.
   accounts: {}
 
-# Volume source of /var/lib/rex, the server's state, its tailnet node state and the home of rex, rendered as given: such as hostPath or persistentVolumeClaim; an emptyDir when empty.
+persistence:
+  # Size of the PersistentVolumeClaim the StatefulSet creates for /var/lib/rex, the server's state, its tailnet node state and the homes. A StatefulSet cannot change its claim template, so a change needs the StatefulSet deleted with --cascade=orphan first.
+  size: 10Gi
+  # Storage class of that claim; the cluster's default when empty.
+  storageClassName: ""
+
+# Volume source of /var/lib/rex, rendered as given, such as hostPath, in place of the claim persistence describes.
 stateVolume: {}
 
 networkPolicy:

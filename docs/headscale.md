@@ -7,7 +7,7 @@ On Headscale, the pod runs `tailscaled` as a sidecar instead, and the server lis
 
 Before you begin:
 
-- the namespace, the Secret and the volume from steps 1 and 2 of the [quick start](../README.md#quick-start), with a pre-auth key from your Headscale server in the Secret
+- the namespace and the Secret from step 1 of the [quick start](../README.md#quick-start), with a pre-auth key from your Headscale server in the Secret
 - the URL of your Headscale server
 
 1. Install the chart with the sidecar on:
@@ -16,8 +16,7 @@ Before you begin:
    helm install rex oci://sarak.sh/mikluko/charts/kuberex -n rex \
      --set tailscale.controlURL=https://<headscale-host> \
      --set tailscale.authKey.existingSecret=rex-tailscale \
-     --set tailscale.sidecar.enabled=true \
-     --set stateVolume.persistentVolumeClaim.claimName=rex-state
+     --set tailscale.sidecar.enabled=true
    ```
 
    If the key was made with tags, add `--set tailscale.allowTailnetMembers=true`.

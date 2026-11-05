@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ .Release.Name }}
   labels:
@@ -10,8 +10,6 @@ spec:
   {{- end }}
   # One server owns the state in /var/lib/rex and the tailnet node.
   replicas: 1
-  strategy:
-    type: Recreate
   selector:
     matchLabels:
       {{- include "kuberex.selector" . | nindent 6 }}
@@ -181,12 +179,10 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
       volumes:
+        {{- with .Values.stateVolume }}
         - name: state
-          {{- with .Values.stateVolume }}
           {{- toYaml . | nindent 10 }}
-          {{- else }}
-          emptyDir: {}
-          {{- end }}
+        {{- end }}
         - name: run
           emptyDir: {}
         {{- if .Values.loginServer.enabled }}
@@ -222,3 +218,16 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+  {{- if not .Values.stateVolume }}
+  volumeClaimTemplates:
+    - metadata:
+        name: state
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- with .Values.persistence.storageClassName }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}
+  {{- end }}

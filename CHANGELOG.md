@@ -8,6 +8,21 @@ A PATCH release with only a base image bump is cut automatically.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-05
+
+### Added
+
+- Chart values `persistence.size` and `persistence.storageClassName`: without
+  `stateVolume`, the chart claims a volume for `/var/lib/rex` itself, 10 GiB
+  of the default storage class.
+
+### Changed
+
+- **Breaking:** the chart runs a StatefulSet instead of a Deployment. An
+  upgrade replaces the pod `<release>-<hash>` with `<release>-0`.
+- **Breaking:** without `stateVolume`, `/var/lib/rex` is a
+  PersistentVolumeClaim instead of an `emptyDir`.
+
 ## [0.9.0] - 2026-11-05
 
 ### Changed

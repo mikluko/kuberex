@@ -66,12 +66,14 @@ A client picks an account with `http://<account>@<host>`; without one, the file'
 ## Chart
 
 `oci://sarak.sh/mikluko/charts/kuberex`, released with the image at the same version.
-It runs one Deployment of one replica with the `Recreate` strategy, and a ServiceAccount.
+It runs one StatefulSet of one replica, and a ServiceAccount.
 [`chart/values.yaml`](../chart/values.yaml) documents every value; these map onto the image:
 
 | Value                              | Effect                                                                     |
 | ---------------------------------- | -------------------------------------------------------------------------- |
-| `stateVolume`                      | volume source of `/var/lib/rex`, rendered as given; default an `emptyDir`  |
+| `persistence.size`                 | size of the PersistentVolumeClaim `state-<release>-0` the StatefulSet creates for `/var/lib/rex`; default `10Gi` |
+| `persistence.storageClassName`     | storage class of that claim; default the cluster's                         |
+| `stateVolume`                      | volume source of `/var/lib/rex` in place of that claim, rendered as given, such as `hostPath` |
 | `tailscale.hostname`               | `TS_HOSTNAME`                                                              |
 | `tailscale.controlURL`             | `TS_CONTROL_URL`                                                           |
 | `tailscale.authKey.existingSecret` | Secret holding the auth key, under the key `tailscale.authKey.key`, default `authkey` |
@@ -82,4 +84,6 @@ It runs one Deployment of one replica with the `Recreate` strategy, and a Servic
 | `loginServer.accounts`             | the accounts file, rendered as JSON                                        |
 | `networkPolicy.enabled`            | a CiliumNetworkPolicy allowing egress only to kube-dns, the kube-apiserver and outside the cluster |
 
+The claim outlives the release: `helm uninstall` leaves it, and a new install of the same release name takes it back.
+A StatefulSet cannot change its claim template, so changing `persistence` on an installed release needs the StatefulSet deleted with `kubectl delete statefulset <release> --cascade=orphan` first.
 With `loginServer.enabled`, the chart mounts `home/` of the state volume at `/home`, so homes outlive the pod.

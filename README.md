@@ -10,11 +10,11 @@ The pod joins your tailnet itself, so it needs no Ingress, no load balancer and 
 
 ## Quick start
 
-This runs kuberex on a Tailscale tailnet, with Rex's built-in Tailscale node and its state on a PersistentVolumeClaim.
+This runs kuberex on a Tailscale tailnet, with Rex's built-in Tailscale node and its state on a 10 GiB volume of the cluster's default storage class.
 
 Before you begin:
 
-- a cluster you can install Helm charts into
+- a cluster you can install Helm charts into, with a default storage class
 - a one-time Tailscale auth key, made without tags so the node belongs to you;
   only the node's owner can connect to it
 - the Rex app or the `rex` command on the machine you connect from
@@ -26,28 +26,11 @@ Before you begin:
    kubectl create secret generic rex-tailscale -n rex --from-literal=authkey=<auth-key>
    ```
 
-1. Create a volume for the server's state and your home:
-
-   ```sh
-   kubectl apply -n rex -f - <<'YAML'
-   apiVersion: v1
-   kind: PersistentVolumeClaim
-   metadata:
-     name: rex-state
-   spec:
-     accessModes: [ReadWriteOnce]
-     resources:
-       requests:
-         storage: 10Gi
-   YAML
-   ```
-
 1. Install the chart:
 
    ```sh
    helm install rex oci://sarak.sh/mikluko/charts/kuberex -n rex \
-     --set tailscale.authKey.existingSecret=rex-tailscale \
-     --set stateVolume.persistentVolumeClaim.claimName=rex-state
+     --set tailscale.authKey.existingSecret=rex-tailscale
    ```
 
 1. Connect once the pod is running. The node joins as `kuberex`:
