@@ -20,7 +20,69 @@
 # Either way only the node's owner is admitted, unless
 #
 #   REX_ALLOW_TAILNET_MEMBERS=true   admits every tailnet member the ACLs let through
+#
+# With REX_LOGIN_SERVER_ACCOUNTS set to a login server accounts file, it runs
+# as root and starts the login server on the tailnet through TS_SOCKET instead,
+# which serves each caller from the server of the account the file maps the
+# caller to. Every account the file names, but root and "*", is created at
+# start with zsh and a home in /var/lib/rex/home/<name>.
 set -eu
+
+# create_account creates account $1 unless it exists. An existing home keeps
+# its owner's uid; a new one takes the next free uid from 1000.
+create_account() {
+  home=/var/lib/rex/home/$1
+  if getent passwd "$1" >/dev/null; then
+    return
+  fi
+  if [ -d "$home" ]; then
+    uid=$(stat -c %u "$home")
+    groupadd --gid "$uid" "$1"
+    useradd --uid "$uid" --gid "$uid" --home-dir "$home" --no-create-home \
+      --shell /usr/bin/zsh "$1"
+  else
+    useradd --user-group --home-dir "$home" --no-create-home \
+      --shell /usr/bin/zsh "$1"
+    install -d -o "$1" -g "$1" -m 0700 "$home"
+  fi
+}
+
+# login_server creates the accounts accounts file $1 names and execs the login
+# server. Accounts with a home are created first, so a new account cannot take
+# the uid an existing home belongs to. /var/lib/rex and /run/rex are opened
+# for traversal, so each account reaches its home and its runtime directory.
+login_server() {
+  if [ "$(id -u)" != 0 ]; then
+    echo "kuberex: the login server runs as root" >&2
+    exit 1
+  fi
+  if [ -z "${TS_SOCKET:-}" ]; then
+    echo "kuberex: the login server listens on the tailnet through TS_SOCKET" >&2
+    exit 1
+  fi
+  chmod 0711 /var/lib/rex
+  chmod 0755 /run/rex
+  install -d -m 0755 /var/lib/rex/home
+  names=$(kuberex-accounts "$1")
+  for name in $names; do
+    if [ -d "/var/lib/rex/home/$name" ]; then
+      create_account "$name"
+    fi
+  done
+  for name in $names; do
+    create_account "$name"
+  done
+  exec rex login-server \
+    --accounts "$1" \
+    --runtime-root /run/rex \
+    --extra-listen "tailnet://:${REX_TAILNET_PORT:-80}" \
+    --tailscaled-socket "$TS_SOCKET" \
+    --log-format text
+}
+
+if [ -n "${REX_LOGIN_SERVER_ACCOUNTS:-}" ]; then
+  login_server "$REX_LOGIN_SERVER_ACCOUNTS"
+fi
 
 if [ -n "${TS_SOCKET:-}" ]; then
   set -- --extra-listen "tailnet://:${REX_TAILNET_PORT:-80}" --tailscaled-socket "$TS_SOCKET"

@@ -1,0 +1,22 @@
+tailscale:
+  hostname: kuberex
+  controlURL: https://headscale.example.com
+  authKey:
+    existingSecret: rex-tailscale
+  sidecar:
+    enabled: true
+loginServer:
+  enabled: true
+  accounts:
+    version: 1
+    accounts:
+      alice:
+        principals: ["tailscale:alice@example.com"]
+      bob:
+        principals: ["tailscale:bob@example.com"]
+    defaults:
+      tailscale:alice@example.com: alice
+stateVolume:
+  hostPath:
+    path: /srv/rex
+    type: Directory

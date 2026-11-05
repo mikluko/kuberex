@@ -2,6 +2,15 @@
 #
 # Build:  container build -t kuberex .
 
+FROM --platform=$BUILDPLATFORM golang:1.27.2-trixie AS build
+ARG TARGETOS TARGETARCH
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd/ cmd/
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
+    go build -trimpath -o /out/kuberex-accounts ./cmd/kuberex-accounts
+
 FROM debian:trixie-20261027
 
 # Rex and Claude Code versions the image ships. Rex's snapshot index keeps
@@ -36,6 +45,7 @@ RUN --mount=type=cache,target=/var/lib/apt,sharing=locked \
         "rex=$REX_VERSION" "claude-code=$CLAUDE_CODE_VERSION"
 
 COPY rootfs/ /
+COPY --from=build /out/kuberex-accounts /usr/local/bin/kuberex-accounts
 
 # The runtime dir holds the socket and is where rex commands in the server's
 # terminals look for it. Go aborts on a removed GODEBUG value, so none is

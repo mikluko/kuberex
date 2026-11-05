@@ -1,0 +1,10 @@
+{{- if .Values.loginServer.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-login-server
+  labels:
+    {{- include "kuberex.labels" . | nindent 4 }}
+data:
+  accounts.jsonc: {{ .Values.loginServer.accounts | toJson | quote }}
+{{- end }}

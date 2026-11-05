@@ -5,6 +5,9 @@ metadata:
   labels:
     {{- include "kuberex.labels" . | nindent 4 }}
 spec:
+  {{- if and .Values.loginServer.enabled (not .Values.tailscale.sidecar.enabled) }}
+  {{- fail "loginServer.enabled needs tailscale.sidecar.enabled" }}
+  {{- end }}
   # One server owns the state in /var/lib/rex and the tailnet node.
   replicas: 1
   strategy:
@@ -19,9 +22,15 @@ spec:
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.podAnnotations }}
+      {{- if or .Values.podAnnotations .Values.loginServer.enabled }}
       annotations:
+        {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.loginServer.enabled }}
+        # Accounts are created at start, so a change restarts the pod.
+        checksum/login-server: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- end }}
       {{- end }}
     spec:
       serviceAccountName: {{ include "kuberex.serviceAccountName" . }}
@@ -115,6 +124,10 @@ spec:
               value: /etc/rex-tailscale/authkey
             {{- end }}
             {{- end }}
+            {{- if .Values.loginServer.enabled }}
+            - name: REX_LOGIN_SERVER_ACCOUNTS
+              value: /etc/kuberex/login-server/accounts.jsonc
+            {{- end }}
             {{- if .Values.tailscale.allowTailnetMembers }}
             - name: REX_ALLOW_TAILNET_MEMBERS
               value: "true"
@@ -125,12 +138,29 @@ spec:
             {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
+            {{- if .Values.loginServer.enabled }}
+            # Root that creates the accounts in /etc, enters /var/lib/rex
+            # whoever owns it, and starts and stops each account's server.
+            runAsNonRoot: false
+            runAsUser: 0
+            runAsGroup: 0
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN, DAC_OVERRIDE, FOWNER, KILL, SETGID, SETUID]
+            {{- else }}
             readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
+            {{- end }}
           volumeMounts:
             - name: state
               mountPath: /var/lib/rex
+            {{- if .Values.loginServer.enabled }}
+            - name: login-server
+              mountPath: /etc/kuberex/login-server
+              readOnly: true
+            {{- end }}
             - name: run
               mountPath: /run/rex
             - name: tmp
@@ -156,6 +186,11 @@ spec:
           {{- end }}
         - name: run
           emptyDir: {}
+        {{- if .Values.loginServer.enabled }}
+        - name: login-server
+          configMap:
+            name: {{ .Release.Name }}-login-server
+        {{- end }}
         - name: tmp
           emptyDir: {}
         {{- if .Values.tailscale.sidecar.enabled }}

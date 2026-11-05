@@ -8,6 +8,19 @@ A PATCH release with only a base image bump is cut automatically.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-05
+
+### Added
+
+- With `REX_LOGIN_SERVER_ACCOUNTS` set to an accounts file, the container
+  runs as root and starts `rex login-server` on the tailnet through
+  `TS_SOCKET`: it creates every account the file names, but `root` and `"*"`,
+  with `zsh` and a home in `/var/lib/rex/home`, and serves each caller as the
+  account the file maps the caller to.
+- Chart values `loginServer.enabled` and `loginServer.accounts`, which run the
+  login server as root with the capabilities `CHOWN`, `DAC_OVERRIDE`,
+  `FOWNER`, `KILL`, `SETGID` and `SETUID` on a writable root filesystem.
+
 ## [0.7.0] - 2026-11-05
 
 ### Added

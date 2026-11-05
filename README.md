@@ -43,6 +43,16 @@ With `TS_SOCKET` set, the server instead serves plain HTTP on the tailnet throug
 
 `REX_ALLOW_TAILNET_MEMBERS` applies to the embedded node too. A node joined with a tagged key has no owner, so it admits nobody without it.
 
+### Login server
+
+With `REX_LOGIN_SERVER_ACCOUNTS` set to an accounts file, the container runs as root and starts [`rex login-server`](https://www.superlogical.com/rex/docs/linux/login-server.md) on the tailnet through `TS_SOCKET` instead.
+Each caller gets the server of the account the file maps it to, running as that account; `REX_ALLOW_TAILNET_MEMBERS` does not apply.
+
+Every account the file names, but `root` and `"*"`, is created at each start, since `/etc` is not kept, so the root filesystem has to be writable.
+It gets `zsh` and a home in `/var/lib/rex/home/<name>`; a home that exists keeps the uid that owns it, and a new one takes the next free uid from 1000.
+The container needs the capabilities `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `KILL`, `SETGID` and `SETUID`, and opens `/var/lib/rex` and `/run/rex` to every account for traversal.
+A client picks an account with `http://<account>@<host>`; without one, the file's defaults decide.
+
 ## Deploy it with Helm
 
 The chart `oci://sarak.sh/mikluko/charts/kuberex` is released with the image, at the same version, and runs one server pod as above.
@@ -56,6 +66,8 @@ The chart `oci://sarak.sh/mikluko/charts/kuberex` is released with the image, at
 | `tailscale.authKey.existingSecret` | Secret with the join key                                     |
 | `tailscale.allowTailnetMembers`    | `REX_ALLOW_TAILNET_MEMBERS`                                  |
 | `tailscale.sidecar.enabled`        | joins through a `tailscaled` sidecar instead, see below      |
+| `loginServer.enabled`              | runs the login server, see below; needs the sidecar          |
+| `loginServer.accounts`             | the accounts file                                            |
 | `networkPolicy.enabled`            | CiliumNetworkPolicy: egress to DNS, kube-apiserver and world |
 | `nodeSelector`, `tolerations`      | placement of the pod                                         |
 
@@ -74,4 +86,19 @@ helm install rex oci://sarak.sh/mikluko/charts/kuberex \
   --set tailscale.authKey.existingSecret=rex-tailscale \
   --set tailscale.allowTailnetMembers=true \
   --set tailscale.sidecar.enabled=true
+```
+
+With `loginServer.enabled`, the same pod runs the login server; the accounts file decides who gets in, and as which account:
+
+```yaml
+tailscale:
+  sidecar:
+    enabled: true
+loginServer:
+  enabled: true
+  accounts:
+    version: 1
+    accounts:
+      alice:
+        principals: ["tailscale:alice@example.com"]
 ```
