@@ -157,6 +157,9 @@ spec:
             - name: state
               mountPath: /var/lib/rex
             {{- if .Values.loginServer.enabled }}
+            - name: state
+              mountPath: /home
+              subPath: home
             - name: login-server
               mountPath: /etc/kuberex/login-server
               readOnly: true

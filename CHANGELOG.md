@@ -8,6 +8,15 @@ A PATCH release with only a base image bump is cut automatically.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-05
+
+### Changed
+
+- The login server's accounts get their homes in `/home/<name>` instead of
+  `/var/lib/rex/home/<name>`; the chart mounts `home/` of the state volume
+  there, so an existing home keeps its files. `/var/lib/rex` is no longer
+  opened to the accounts.
+
 ## [0.8.0] - 2026-11-05
 
 ### Added
