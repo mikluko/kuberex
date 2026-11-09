@@ -31,6 +31,7 @@ It reads:
 | `TS_SOCKET`                 | LocalAPI socket of the `tailscaled`; required                                     |
 | `REX_TAILNET_PORT`          | tailnet port the login server serves plain HTTP on; default `80`                  |
 | `KUBEREX_APT`               | directory of apt additions; none when unset                                       |
+| `KUBEREX_SERVICES`          | [services file](#services); none when unset                                       |
 
 At each start, in this order, it:
 
@@ -38,11 +39,28 @@ At each start, in this order, it:
 1. creates every account the accounts file names, except `root` and `"*"`, with zsh and a home in `/home/<account>`; a home that exists keeps the uid that owns it, and a new home takes the next free uid from 1000
 1. opens `/run/rex` to every account for traversal
 1. makes `/tmp` owned by root with mode `1777`, and `/tmp/user/<uid>` with mode `0700` for every account it created
+1. starts the services in `$KUBEREX_SERVICES`, beside the next step
 1. starts the login server with its runtime root in `/run/rex`
 
 Each account's server runs in a PAM session, where `pam_tmpdir` sets `TMPDIR` and `TMP` to `/tmp/user/<uid>`, a directory only the account can open.
 
 A client picks an account with `http://<account>@<host>:<port>`; without one, the file's `defaults` decide.
+
+### Services
+
+A service is a command that starts with the pod, in a Rex session of an account's own server, where anyone connecting as that account sees it.
+The services file is a JSON array of services, each with these fields:
+
+| Field     | Meaning                                                                        |
+| --------- | ------------------------------------------------------------------------------ |
+| `account` | the account to run as; required                                                |
+| `label`   | the label of the Rex session; required                                         |
+| `command` | the command and its arguments, run through the account's login shell environment; required |
+| `cwd`     | the directory to start in; the account's home when empty                       |
+
+`kuberex-services` starts each account's server the way the login server does, which then serves connections to that account from the same server.
+A session that already carries the label, which the server restored from before the restart with a bare shell in it, is replaced by a new one running the command.
+A command that exits is not restarted, and its terminal stays open with its last output.
 
 ### Claude Code Sessions
 
@@ -87,6 +105,7 @@ The pod runs `tailscaled` from `tailscale/tailscale` as a sidecar in userspace n
 | `apt.sources`                      | apt sources, file name without `.sources` to deb822 content                |
 | `apt.keyrings`                     | keyrings for them, file name in `/etc/apt/keyrings` to content            |
 | `apt.packages`                     | `apt-get install` arguments                                                |
+| `services`                         | the [services](#services), as a list; each `account` must be named in `accounts` |
 | `persistence.size`                 | size of the PersistentVolumeClaim `state-<release>-0` the StatefulSet creates for `/var/lib/rex`; default `10Gi` |
 | `persistence.storageClassName`     | storage class of that claim; default the cluster's                         |
 | `stateVolume`                      | volume source of `/var/lib/rex` in place of that claim, rendered as given, such as `hostPath` |

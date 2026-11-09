@@ -1,6 +1,14 @@
 {{- if not (.Values.accounts).accounts }}
 {{- fail "accounts.accounts names no account: the login server would admit nobody" }}
 {{- end }}
+{{- range $i, $s := .Values.services }}
+{{- if or (not $s.account) (not $s.label) (not $s.command) }}
+{{- fail (printf "services[%d] needs account, label and command" $i) }}
+{{- end }}
+{{- if or (eq $s.account "*") (not (hasKey $.Values.accounts.accounts $s.account)) }}
+{{- fail (printf "services[%d]: account %q is not named in accounts.accounts" $i $s.account) }}
+{{- end }}
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -9,6 +17,9 @@ metadata:
     {{- include "kuberex.labels" . | nindent 4 }}
 data:
   accounts.jsonc: {{ .Values.accounts | toJson | quote }}
+  {{- with .Values.services }}
+  services.json: {{ . | toJson | quote }}
+  {{- end }}
   {{- range $name, $content := .Values.apt.sources }}
   source-{{ $name }}: {{ $content | quote }}
   {{- end }}

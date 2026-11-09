@@ -106,6 +106,10 @@ spec:
             - name: KUBEREX_APT
               value: /etc/kuberex/apt
             {{- end }}
+            {{- if .Values.services }}
+            - name: KUBEREX_SERVICES
+              value: /etc/kuberex/services.json
+            {{- end }}
             {{- range $k, $v := .Values.env }}
             - name: {{ $k }}
               value: {{ $v | toString | quote }}
@@ -131,6 +135,12 @@ spec:
               mountPath: /etc/kuberex/accounts.jsonc
               subPath: accounts.jsonc
               readOnly: true
+            {{- if .Values.services }}
+            - name: config
+              mountPath: /etc/kuberex/services.json
+              subPath: services.json
+              readOnly: true
+            {{- end }}
             {{- if or .Values.apt.sources .Values.apt.packages }}
             - name: apt
               mountPath: /etc/kuberex/apt

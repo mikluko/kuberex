@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-09
+
+### Added
+
+- Services: commands that start with the pod, each in a labelled Rex session
+  of an account's own server, from chart value `services` through
+  `KUBEREX_SERVICES` and `kuberex-services`. A session restored from before
+  the restart under the same label is replaced.
+
 ## [0.14.0] - 2026-11-09
 
 ### Added

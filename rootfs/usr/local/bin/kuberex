@@ -10,6 +10,8 @@
 #                              before the server starts: *.sources files,
 #                              keyrings referenced by them, and a packages
 #                              file of apt-get install arguments
+#   KUBEREX_SERVICES           optional services file for kuberex-services,
+#                              whose services start beside the login server
 #
 # Every account the accounts file names, but root and "*", is created at start
 # with zsh and a home in /home/<name>.
@@ -99,6 +101,11 @@ chmod 0755 /run/rex
 chown 0:0 /tmp
 chmod 01777 /tmp
 create_tmpdirs "$REX_LOGIN_SERVER_ACCOUNTS"
+# In a subshell that exits at once, so dumb-init rather than the login server
+# reaps kuberex-services and the account servers it starts.
+if [ -n "${KUBEREX_SERVICES:-}" ]; then
+  (kuberex-services "$KUBEREX_SERVICES" &)
+fi
 
 exec rex login-server \
   --accounts "$REX_LOGIN_SERVER_ACCOUNTS" \

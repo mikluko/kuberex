@@ -22,6 +22,11 @@ accounts:
       principals: ["tailscale:bob@example.com"]
   defaults:
     tailscale:alice@example.com: alice
+services:
+  - account: bob
+    label: supervisor
+    cwd: /home/bob/city
+    command: ["gc", "supervisor", "run"]
 apt:
   sources:
     example: |
