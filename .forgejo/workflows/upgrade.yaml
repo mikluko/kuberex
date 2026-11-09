@@ -1,12 +1,13 @@
 name: upgrade
 
-# Moves Dockerfile's FROM to Debian's newest trixie-YYYYMMDD snapshot and
-# REX_VERSION to the newest Rex in the channel apt/sources.list.d/rex.sources
-# names, notes each move under Changed in CHANGELOG.md's [Unreleased], turns
-# [Unreleased] into the version the changelog release action computes, and
-# pushes the result to main for the release workflow to publish. Rex's snapshot
-# index keeps only its newest builds, so this daily run is what keeps the image
-# buildable.
+# Moves Dockerfile's FROM to Debian's newest trixie-YYYYMMDD snapshot, and
+# REX_VERSION and CLAUDE_CODE_VERSION to the newest Rex and Claude Code in the
+# channels apt/sources.list.d names, notes each move under Changed in
+# CHANGELOG.md's [Unreleased], turns [Unreleased] into the version the
+# changelog release action computes, and pushes the result to main for the
+# release workflow to publish. Rex's snapshot index keeps only its newest
+# builds, so this daily run is what keeps the image buildable. Claude Code's
+# own update check is off in the image, so this run is also how it gets newer.
 
 on:
   schedule:
@@ -41,35 +42,41 @@ jobs:
           echo "version=$version" >>"$GITHUB_OUTPUT"
           echo "moved=$([ "$version" != "$current" ] && echo true || echo false)" >>"$GITHUB_OUTPUT"
 
-      # apt in the new base reads the index through the image's own source and
-      # keyring, so the signature is checked and versions compare as dpkg
+      # apt in the new base reads the indexes through the image's own sources
+      # and keyrings, so signatures are checked and versions compare as dpkg
       # compares them. The runner has no Docker daemon, only the remote
       # buildx builder the image job uses. A version is taken only once both
       # architectures have it.
-      - name: Resolve newest Rex
-        id: rex
+      - name: Resolve newest Rex and Claude Code
+        id: pkg
         env:
           DEBIAN: ${{ steps.base.outputs.version }}
         run: |
           docker buildx build --no-cache --platform linux/amd64 \
             --build-arg "BASE=$BASE:$DEBIAN" \
-            --file .forgejo/rex-candidates.Dockerfile \
-            --output "type=local,dest=$RUNNER_TEMP/rex" \
+            --file .forgejo/candidates.Dockerfile \
+            --output "type=local,dest=$RUNNER_TEMP/pkg" \
             apt
-          amd64=$(sed -n 1p "$RUNNER_TEMP/rex/candidates")
-          arm64=$(sed -n 2p "$RUNNER_TEMP/rex/candidates")
-          version=
-          if [ -z "$amd64" ] || [ "$amd64" = "(none)" ] || [ -z "$arm64" ] || [ "$arm64" = "(none)" ]; then
-            echo "::error::no rex package for amd64 and arm64 in the channel apt/sources.list.d/rex.sources names"
-            exit 1
-          elif [ "$amd64" != "$arm64" ]; then
-            echo "::warning::Rex is $amd64 for amd64 and $arm64 for arm64; it moves once both have the same"
-          else
-            version=$amd64
-          fi
-          current=$(sed -nE 's|^ARG REX_VERSION=(.+)|\1|p' Dockerfile)
-          echo "version=$version" >>"$GITHUB_OUTPUT"
-          echo "moved=$([ -n "$version" ] && [ "$version" != "$current" ] && echo true || echo false)" >>"$GITHUB_OUTPUT"
+          # resolve PACKAGE ARG KEY writes KEY_version and KEY_moved for the
+          # Dockerfile ARG that pins PACKAGE.
+          resolve() {
+            amd64=$(awk -v p="$1" '$1 == p && $2 == "amd64" { print $3 }' "$RUNNER_TEMP/pkg/candidates")
+            arm64=$(awk -v p="$1" '$1 == p && $2 == "arm64" { print $3 }' "$RUNNER_TEMP/pkg/candidates")
+            version=
+            if [ -z "$amd64" ] || [ "$amd64" = "(none)" ] || [ -z "$arm64" ] || [ "$arm64" = "(none)" ]; then
+              echo "::error::no $1 package for amd64 and arm64 in the channels apt/sources.list.d names"
+              return 1
+            elif [ "$amd64" != "$arm64" ]; then
+              echo "::warning::$1 is $amd64 for amd64 and $arm64 for arm64; it moves once both have the same"
+            else
+              version=$amd64
+            fi
+            current=$(sed -nE "s|^ARG $2=(.+)|\1|p" Dockerfile)
+            echo "$3_version=$version" >>"$GITHUB_OUTPUT"
+            echo "$3_moved=$([ -n "$version" ] && [ "$version" != "$current" ] && echo true || echo false)" >>"$GITHUB_OUTPUT"
+          }
+          resolve rex REX_VERSION rex
+          resolve claude-code CLAUDE_CODE_VERSION claude
 
       - name: Pin base
         if: steps.base.outputs.moved == 'true'
@@ -83,33 +90,47 @@ jobs:
           note: Base image is `${{ env.BASE }}:${{ steps.base.outputs.version }}`.
 
       - name: Pin Rex
-        if: steps.rex.outputs.moved == 'true'
+        if: steps.pkg.outputs.rex_moved == 'true'
         env:
-          VERSION: ${{ steps.rex.outputs.version }}
+          VERSION: ${{ steps.pkg.outputs.rex_version }}
         run: sed -i -E "s|^ARG REX_VERSION=.+|ARG REX_VERSION=$VERSION|" Dockerfile
-      - if: steps.rex.outputs.moved == 'true'
+      - if: steps.pkg.outputs.rex_moved == 'true'
         uses: https://sarak.sh/actions/changelog/append@v1
         with:
           section: Changed
-          note: Rex is `${{ steps.rex.outputs.version }}`.
+          note: Rex is `${{ steps.pkg.outputs.rex_version }}`.
+
+      - name: Pin Claude Code
+        if: steps.pkg.outputs.claude_moved == 'true'
+        env:
+          VERSION: ${{ steps.pkg.outputs.claude_version }}
+        run: sed -i -E "s|^ARG CLAUDE_CODE_VERSION=.+|ARG CLAUDE_CODE_VERSION=$VERSION|" Dockerfile
+      - if: steps.pkg.outputs.claude_moved == 'true'
+        uses: https://sarak.sh/actions/changelog/append@v1
+        with:
+          section: Changed
+          note: Claude Code is `${{ steps.pkg.outputs.claude_version }}`.
 
       - id: release
-        if: steps.base.outputs.moved == 'true' || steps.rex.outputs.moved == 'true'
+        if: steps.base.outputs.moved == 'true' || steps.pkg.outputs.rex_moved == 'true' || steps.pkg.outputs.claude_moved == 'true'
         uses: https://sarak.sh/actions/changelog/release@v1
 
       - name: Commit
-        if: steps.base.outputs.moved == 'true' || steps.rex.outputs.moved == 'true'
+        if: steps.base.outputs.moved == 'true' || steps.pkg.outputs.rex_moved == 'true' || steps.pkg.outputs.claude_moved == 'true'
         env:
           BASE_MOVED: ${{ steps.base.outputs.moved }}
           BASE_VERSION: ${{ steps.base.outputs.version }}
-          REX_MOVED: ${{ steps.rex.outputs.moved }}
-          REX_VERSION: ${{ steps.rex.outputs.version }}
+          REX_MOVED: ${{ steps.pkg.outputs.rex_moved }}
+          REX_VERSION: ${{ steps.pkg.outputs.rex_version }}
+          CLAUDE_MOVED: ${{ steps.pkg.outputs.claude_moved }}
+          CLAUDE_VERSION: ${{ steps.pkg.outputs.claude_version }}
           RELEASE: ${{ steps.release.outputs.version }}
         run: |
           git diff
           pins=
           if [ "$BASE_MOVED" = true ]; then pins="base to $BASE:$BASE_VERSION"; fi
           if [ "$REX_MOVED" = true ]; then pins="${pins:+$pins, }Rex to $REX_VERSION"; fi
+          if [ "$CLAUDE_MOVED" = true ]; then pins="${pins:+$pins, }Claude Code to $CLAUDE_VERSION"; fi
           git config user.name 'forgejo-actions'
           git config user.email 'actions@sarak.sh'
           git commit -qam "kuberex $RELEASE: pin $pins"
