@@ -11,11 +11,11 @@ COPY cmd/ cmd/
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -trimpath -o /out/kuberex-accounts ./cmd/kuberex-accounts
 
-FROM debian:trixie-20261027
+FROM debian:trixie-20261104
 
 # Rex and Claude Code versions the image ships. Rex's snapshot index keeps
 # only its newest builds, so a stale REX_VERSION stops the image building.
-ARG REX_VERSION=0.0.1793645657-gd018d2
+ARG REX_VERSION=0.0.1794111130-g9bcf6a
 ARG CLAUDE_CODE_VERSION=2.1.309-1
 
 ARG DEBIAN_FRONTEND=noninteractive

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-09
+
+### Changed
+
+- Base image is `debian:trixie-20261104`.
+- Rex is `0.0.1794111130-g9bcf6a`.
+
 ## [0.12.1] - 2026-11-05
 
 ### Fixed
