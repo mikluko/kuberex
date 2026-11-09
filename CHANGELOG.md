@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-09
+
+### Added
+
+- A Claude Code session running in a Rex pane when the pod stops is resumed
+  in that pane once Rex restores it, through `kuberex-claude` and Claude Code
+  hooks in `/etc/claude-code/managed-settings.d/kuberex.json`.
+
 ## [0.13.0] - 2026-11-09
 
 ### Changed

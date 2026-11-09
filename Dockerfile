@@ -9,7 +9,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd/ cmd/
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -trimpath -o /out/kuberex-accounts ./cmd/kuberex-accounts
+    go build -trimpath -o /out/ ./cmd/kuberex-accounts ./cmd/kuberex-claude
 
 FROM debian:trixie-20261104
 
@@ -45,7 +45,8 @@ RUN --mount=type=cache,target=/var/lib/apt,sharing=locked \
         "rex=$REX_VERSION" "claude-code=$CLAUDE_CODE_VERSION"
 
 COPY rootfs/ /
-COPY --from=build /out/kuberex-accounts /usr/local/bin/kuberex-accounts
+COPY --from=build /out/kuberex-accounts /out/kuberex-claude /usr/local/bin/
+RUN echo '. /etc/zsh/kuberex-claude.zsh' >>/etc/zsh/zshrc
 
 # rex commands look for the login server's sockets in the runtime dir. Go
 # aborts on a removed GODEBUG value, so none is inherited.

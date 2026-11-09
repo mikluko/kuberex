@@ -44,6 +44,32 @@ Each account's server runs in a PAM session, where `pam_tmpdir` sets `TMPDIR` an
 
 A client picks an account with `http://<account>@<host>:<port>`; without one, the file's `defaults` decide.
 
+### Claude Code Sessions
+
+Rex restores an account's sessions, windows and panes when its server starts again, on the first connection after the pod restarts, but each pane comes back as a new shell.
+A Claude Code session that was running in a pane is resumed there: at the shell's first prompt, after its startup files, the shell runs `claude --resume <session>` in the directory the session started in.
+
+- Only an interactive session is resumed: not `claude -p`, and not a session started from inside another Claude Code session.
+- A session quit with `/exit` or by logging out is not resumed.
+- The flags `claude` was started with are not passed again; set defaults such as the model or the permission mode in `~/.claude/settings.json`.
+
+Claude Code hooks in `/etc/claude-code/managed-settings.d/kuberex.json` run `kuberex-claude`, which keeps the session of each pane in `~/.local/state/kuberex/claude`.
+When an account receives [server-managed settings](https://code.claude.com/docs/en/server-managed-settings.md) from its organization, Claude Code skips managed settings files, these hooks with them.
+The same hooks in `~/.claude/settings.json` bring sessions back:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "/usr/local/bin/kuberex-claude record", "async": true }] }
+    ],
+    "SessionEnd": [
+      { "hooks": [{ "type": "command", "command": "/usr/local/bin/kuberex-claude forget" }] }
+    ]
+  }
+}
+```
+
 ## Chart
 
 `oci://sarak.sh/mikluko/charts/kuberex`, released with the image at the same version.
