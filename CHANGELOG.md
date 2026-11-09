@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-09
+
+### Changed
+
+- Rex is `0.0.1794237812-g75d0b3`.
+- Claude Code is `2.1.311-1`.
+
 ## [0.17.0] - 2026-11-09
 
 ### Changed
