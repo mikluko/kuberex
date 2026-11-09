@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-09
+
+### Changed
+
+- Claude Code no longer checks for updates, prints "Update available!" or
+  sends telemetry, error reports and other nonessential traffic: the managed
+  settings in `/etc/claude-code/managed-settings.d/kuberex.json` set
+  `DISABLE_UPDATES`, `DISABLE_AUTOUPDATER`, `DISABLE_TELEMETRY`,
+  `DISABLE_ERROR_REPORTING` and `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`.
+  Remote Control is unavailable with them.
+
 ## [0.16.0] - 2026-11-09
 
 ### Added

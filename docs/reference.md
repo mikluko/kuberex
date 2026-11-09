@@ -19,6 +19,10 @@ A new Rex or Claude Code version reaches the pod as a new image release.
 Every day, the upgrade workflow moves the Rex pin and the Debian snapshot to the newest of each, and when either moves, releases a new version carrying the move and anything else under `[Unreleased]` in [`CHANGELOG.md`](../CHANGELOG.md).
 The full package list is in the [`Dockerfile`](../Dockerfile).
 
+Claude Code neither checks for updates nor updates itself, and sends no telemetry, error reports or other nonessential traffic: `/etc/claude-code/managed-settings.d/kuberex.json` sets `DISABLE_UPDATES`, `DISABLE_AUTOUPDATER`, `DISABLE_TELEMETRY`, `DISABLE_ERROR_REPORTING` and `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` for every account.
+Feature-flag fetching is off with them, so [Remote Control](https://code.claude.com/docs/en/remote-control.md#requirements) is unavailable.
+An account receiving [server-managed settings](https://code.claude.com/docs/en/server-managed-settings.md) skips this file; see [Claude Code Sessions](#claude-code-sessions).
+
 ### Entrypoint
 
 The entrypoint starts [`rex login-server`](https://www.superlogical.com/rex/docs/linux/login-server.md) on the tailnet through a `tailscaled` already on it.
