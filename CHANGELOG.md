@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-11-10
+
+### Added
+
+- `kuberexctl stop-servers`, which stops every account's Rex server and syncs
+  the filesystems.
+
+### Changed
+
+- The entrypoint keeps running beside the login server. Once the login server
+  exits, for a shutdown or when Kubernetes stops the pod, the entrypoint
+  stops every account's Rex server cleanly, so its sessions come back.
+
+### Fixed
+
+- `kuberexctl shutdown` ends the container with code 0. It could end it with
+  code 1 ("context deadline exceeded") when a client reconnected while the
+  account servers stopped; the login server now stops admitting clients
+  before any account server stops.
+
 ## [0.21.0] - 2026-11-09
 
 ### Changed

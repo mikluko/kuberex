@@ -135,16 +135,40 @@ create_tmpdirs "$REX_LOGIN_SERVER_ACCOUNTS"
 if [ -n "${KUBEREX_SERVICES:-}" ]; then
   (kuberexctl services "$KUBEREX_SERVICES" &)
 fi
-# The exec below keeps this process's ID, so kuberexctl serve signals the
-# login server by it.
-if [ -n "${KUBEREX_SHUTDOWN_ACCOUNTS:-}" ]; then
-  install -d -o 0 -g 0 -m 0755 /run/kuberex
-  (kuberexctl serve --login-server-pid $$ --accounts "$KUBEREX_SHUTDOWN_ACCOUNTS" &)
-fi
-
-exec rex login-server \
+rex login-server \
   --accounts "$REX_LOGIN_SERVER_ACCOUNTS" \
   --runtime-root /run/rex \
   --extra-listen "tailnet://:${REX_TAILNET_PORT:-80}" \
   --tailscaled-socket "$TS_SOCKET" \
-  --log-format text
+  --log-format text &
+login_server=$!
+# dumb-init forwards a signal to this process too; the login server is the
+# one it is meant for, SIGHUP reloading its accounts file.
+trap 'kill -TERM "$login_server" 2>/dev/null' TERM
+trap 'kill -INT "$login_server" 2>/dev/null' INT
+trap 'kill -HUP "$login_server" 2>/dev/null' HUP
+
+if [ -n "${KUBEREX_SHUTDOWN_ACCOUNTS:-}" ]; then
+  install -d -o 0 -g 0 -m 0755 /run/kuberex
+  (kuberexctl serve --login-server-pid "$login_server" --accounts "$KUBEREX_SHUTDOWN_ACCOUNTS" &)
+fi
+
+# wait returns early when a trapped signal arrives; the login server has
+# exited only once it is gone.
+status=0
+while :; do
+  status=0
+  wait "$login_server" || status=$?
+  if ! kill -0 "$login_server" 2>/dev/null; then
+    break
+  fi
+done
+echo "kuberex: the login server exited with status $status" >&2
+
+# The account servers outlive the login server, which no longer starts new
+# ones; stopping them lets each record a clean shutdown.
+kuberexctl stop-servers || true
+if [ -e /run/kuberex/shutdown ]; then
+  exit 0
+fi
+exit "$status"

@@ -47,8 +47,10 @@ At each start, in this order, it:
 1. opens `/run/rex` to every account for traversal
 1. makes `/tmp` owned by root with mode `1777`, and `/tmp/user/<uid>` with mode `0700` for every account it created
 1. starts the services in `$KUBEREX_SERVICES`, beside the next step
-1. starts `kuberexctl serve` for the accounts in `$KUBEREX_SHUTDOWN_ACCOUNTS`, beside the next step
-1. starts the login server with its runtime root in `/run/rex`
+1. starts the login server with its runtime root in `/run/rex`, and passes it the signals the container receives
+1. starts `kuberexctl serve` for the accounts in `$KUBEREX_SHUTDOWN_ACCOUNTS`
+1. once the login server has exited, stops every account's Rex server with `kuberexctl stop-servers`, so each records a clean shutdown, and syncs the filesystems
+1. exits with code 0 after a [shutdown](#shutdown), and otherwise with the login server's exit code
 
 Each account's server runs in a PAM session, where `pam_tmpdir` sets `TMPDIR` and `TMP` to `/tmp/user/<uid>`, a directory only the account can open.
 
@@ -87,11 +89,9 @@ kuberexctl shutdown
 
 It exits 0 once the shutdown is accepted and prints `kuberexctl: shutting down the container`.
 It exits 1 when the account is not allowed, the container is already shutting down, or shutdown is not enabled.
-About a second after accepting, `kuberexctl serve`, running as root:
-
-1. stops every account's Rex server with `rex server stop`, so the server records a clean shutdown and restores its sessions at the next start; each terminal's processes, the caller included, get a hangup
-1. syncs the filesystems
-1. sends `SIGTERM` to the login server, which exits 0 and ends the container with code 0
+About a second after accepting, `kuberexctl serve`, running as root, records the shutdown in `/run/kuberex/shutdown` and sends `SIGTERM` to the login server, which stops admitting clients and exits.
+The [entrypoint](#entrypoint) then stops every account's Rex server with `rex server stop`, so the server records a clean shutdown and restores its sessions at the next start; each terminal's processes, the caller included, get a hangup.
+It syncs the filesystems and ends the container with code 0, whatever the login server's exit code.
 
 `kuberexctl` guarantees only that the container ends.
 Whether it starts again is the pod's restart policy: the chart's StatefulSet has `Always`, so Kubernetes starts the container again, which runs the [entrypoint](#entrypoint) from the beginning; the services start again, and the volumes, the pod and its `tailscaled` stay as they were.

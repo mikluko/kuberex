@@ -21,7 +21,10 @@ const stopTimeout = time.Minute
 type pod struct {
 	runtimeRoot    string
 	loginServerPID int
+	marker         string
 }
+
+func (p pod) markShutdown() error { return os.WriteFile(p.marker, nil, 0o644) }
 
 func (p pod) servers() ([]string, error) {
 	entries, err := os.ReadDir(filepath.Join(p.runtimeRoot, "accounts"))

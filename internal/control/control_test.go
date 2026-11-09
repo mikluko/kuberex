@@ -6,11 +6,20 @@ import (
 	"testing"
 )
 
-// fakeHost records the restart steps in order.
+// fakeHost records the shutdown steps in order.
 type fakeHost struct {
-	running []string
-	failOn  string
-	steps   []string
+	running  []string
+	failOn   string
+	failMark bool
+	steps    []string
+}
+
+func (f *fakeHost) markShutdown() error {
+	f.steps = append(f.steps, "mark")
+	if f.failMark {
+		return errors.New("read-only")
+	}
+	return nil
 }
 
 func (f *fakeHost) servers() ([]string, error) { return f.running, nil }
@@ -74,13 +83,26 @@ func TestDecideOnlyFirstShutdownStarts(t *testing.T) {
 	}
 }
 
-func TestShutdownStopsEveryServerBeforeTerminating(t *testing.T) {
-	h := &fakeHost{running: []string{"city", "bao", "ops"}, failOn: "bao"}
-	s := newServer(nil, lookupFake, h)
-	if err := s.shutdown(); err != nil {
-		t.Fatal(err)
+func TestShutdownMarksThenTerminatesWithoutStoppingServers(t *testing.T) {
+	for _, failMark := range []bool{false, true} {
+		h := &fakeHost{running: []string{"city"}, failMark: failMark}
+		s := newServer(nil, lookupFake, h)
+		if err := s.shutdown(); err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"mark", "terminate"}
+		if !reflect.DeepEqual(h.steps, want) {
+			t.Fatalf("failMark=%v: steps = %v, want %v", failMark, h.steps, want)
+		}
 	}
-	want := []string{"stop city", "stop bao", "stop ops", "sync", "terminate"}
+}
+
+func TestStopServersStopsEveryServerThenSyncs(t *testing.T) {
+	h := &fakeHost{running: []string{"city", "bao", "ops"}, failOn: "bao"}
+	if failed := stopServers(h); failed != 1 {
+		t.Fatalf("failed = %d, want 1", failed)
+	}
+	want := []string{"stop city", "stop bao", "stop ops", "sync"}
 	if !reflect.DeepEqual(h.steps, want) {
 		t.Fatalf("steps = %v, want %v", h.steps, want)
 	}

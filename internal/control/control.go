@@ -3,10 +3,11 @@
 //
 // "kuberexctl serve" runs as root beside the login server and listens on a
 // unix socket. "kuberexctl shutdown", run as an account the server allows,
-// asks it to shut down. The server then stops every account's Rex server, so
-// each records a clean shutdown and restores its sessions at the next start,
-// syncs the filesystems and sends SIGTERM to the login server, whose exit
-// ends the container with code 0.
+// asks it to shut down. The server then marks the shutdown and sends SIGTERM
+// to the login server. Once the login server has exited, the entrypoint runs
+// "kuberexctl stop-servers", which stops every account's Rex server, so each
+// records a clean shutdown and restores its sessions at the next start, and
+// syncs the filesystems; a marked shutdown then exits with code 0.
 package control
 
 import (
@@ -24,6 +25,10 @@ import (
 
 const defaultSocket = "/run/kuberex/control.sock"
 
+// defaultMarker is the file "kuberexctl serve" creates when it accepts a
+// shutdown, which the entrypoint reads.
+const defaultMarker = "/run/kuberex/shutdown"
+
 // ServeMain runs "kuberexctl serve" with args, the words after "serve". It
 // returns only to exit the process with a failure.
 func ServeMain(args []string) {
@@ -32,13 +37,14 @@ func ServeMain(args []string) {
 	runtimeRoot := fs.String("runtime-root", "/run/rex", "the login server's runtime root")
 	pid := fs.Int("login-server-pid", 0, "process ID of the login server")
 	accounts := fs.String("accounts", "", "accounts allowed to shut down, separated by spaces or commas")
+	marker := fs.String("marker", defaultMarker, "file created when a shutdown is accepted")
 	_ = fs.Parse(args)
 	log.SetPrefix("kuberexctl: ")
 	log.SetFlags(0)
 	if *pid <= 0 {
 		log.Fatal("--login-server-pid is required")
 	}
-	s := newServer(parseAccounts(*accounts), lookupUID, pod{runtimeRoot: *runtimeRoot, loginServerPID: *pid})
+	s := newServer(parseAccounts(*accounts), lookupUID, pod{runtimeRoot: *runtimeRoot, loginServerPID: *pid, marker: *marker})
 	log.Fatal(s.listen(*socket))
 }
 
@@ -91,22 +97,29 @@ func request(socket, req string) (string, error) {
 	return strings.TrimSpace(reply), nil
 }
 
-// host is what a shutdown needs from the pod.
-type host interface {
+// requestHost is what accepting a shutdown needs from the pod.
+type requestHost interface {
+	// markShutdown records that a shutdown was requested, for the
+	// entrypoint to exit 0 once the login server has exited.
+	markShutdown() error
+	// terminate sends SIGTERM to the login server.
+	terminate() error
+}
+
+// serversHost is what stopping the account servers needs from the pod.
+type serversHost interface {
 	// servers returns the accounts whose Rex server is running.
 	servers() ([]string, error)
 	// stopServer stops account's Rex server and waits for it to exit.
 	stopServer(account string) error
 	// sync flushes every filesystem.
 	sync()
-	// terminate sends SIGTERM to the login server.
-	terminate() error
 }
 
 type server struct {
 	allowed map[string]bool
 	lookup  func(uid uint32) (string, error)
-	h       host
+	h       requestHost
 	// grace is how long a shutdown waits after replying, so the requesting
 	// process sees the reply before its own server stops.
 	grace time.Duration
@@ -115,7 +128,7 @@ type server struct {
 	shuttingDown bool
 }
 
-func newServer(allowed map[string]bool, lookup func(uint32) (string, error), h host) *server {
+func newServer(allowed map[string]bool, lookup func(uint32) (string, error), h requestHost) *server {
 	return &server{allowed: allowed, lookup: lookup, h: h, grace: time.Second}
 }
 
@@ -138,23 +151,48 @@ func (s *server) decide(uid uint32, req string) (reply string, start bool) {
 	return "ok", true
 }
 
-// shutdown stops every account's server, syncs and terminates the login
-// server. A server that fails to stop is logged and does not hold up the
-// others.
+// shutdown marks the shutdown and terminates the login server. The login
+// server goes first so that no client can start an account server while the
+// entrypoint stops them; a failed mark is logged and does not stop it.
 func (s *server) shutdown() error {
-	names, err := s.h.servers()
+	if err := s.h.markShutdown(); err != nil {
+		log.Printf("marking the shutdown: %v", err)
+	}
+	return s.h.terminate()
+}
+
+// stopServers stops every account's server and syncs, and returns how many
+// servers failed to stop. A failure does not hold up the other servers.
+func stopServers(h serversHost) int {
+	names, err := h.servers()
 	if err != nil {
 		log.Printf("listing account servers: %v", err)
 	}
+	failed := 0
 	for _, name := range names {
-		if err := s.h.stopServer(name); err != nil {
+		if err := h.stopServer(name); err != nil {
 			log.Printf("stopping the Rex server of %s: %v", name, err)
+			failed++
 		} else {
 			log.Printf("stopped the Rex server of %s", name)
 		}
 	}
-	s.h.sync()
-	return s.h.terminate()
+	h.sync()
+	return failed
+}
+
+// StopServersMain runs "kuberexctl stop-servers" with args, the words after
+// "stop-servers", and returns its exit code: 1 when a server failed to stop.
+func StopServersMain(args []string) int {
+	fs := flag.NewFlagSet("stop-servers", flag.ExitOnError)
+	runtimeRoot := fs.String("runtime-root", "/run/rex", "the login server's runtime root")
+	_ = fs.Parse(args)
+	log.SetPrefix("kuberexctl: ")
+	log.SetFlags(0)
+	if stopServers(pod{runtimeRoot: *runtimeRoot}) > 0 {
+		return 1
+	}
+	return 0
 }
 
 // listen serves requests on socket until accepting fails, and returns why.
