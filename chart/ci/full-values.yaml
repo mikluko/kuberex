@@ -22,6 +22,8 @@ accounts:
       principals: ["tailscale:bob@example.com"]
   defaults:
     tailscale:alice@example.com: alice
+accountSecrets:
+  bob: [bob-git, bob-github]
 services:
   - account: bob
     label: supervisor

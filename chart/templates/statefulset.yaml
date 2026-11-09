@@ -106,6 +106,10 @@ spec:
             - name: KUBEREX_APT
               value: /etc/kuberex/apt
             {{- end }}
+            {{- if .Values.accountSecrets }}
+            - name: KUBEREX_SECRETS
+              value: /etc/kuberex/secrets
+            {{- end }}
             {{- if .Values.services }}
             - name: KUBEREX_SERVICES
               value: /etc/kuberex/services.json
@@ -135,6 +139,13 @@ spec:
               mountPath: /etc/kuberex/accounts.jsonc
               subPath: accounts.jsonc
               readOnly: true
+            {{- range $account, $secrets := .Values.accountSecrets }}
+            {{- range $secret := $secrets }}
+            - name: {{ include "kuberex.accountSecretVolume" (list $account $secret) }}
+              mountPath: /etc/kuberex/secrets/{{ $account }}/{{ $secret }}
+              readOnly: true
+            {{- end }}
+            {{- end }}
             {{- if .Values.services }}
             - name: config
               mountPath: /etc/kuberex/services.json
@@ -191,6 +202,14 @@ spec:
           emptyDir: {}
         - name: tailscale
           emptyDir: {}
+        {{- range $account, $secrets := .Values.accountSecrets }}
+        {{- range $secret := $secrets }}
+        - name: {{ include "kuberex.accountSecretVolume" (list $account $secret) }}
+          secret:
+            secretName: {{ $secret }}
+            defaultMode: 0400
+        {{- end }}
+        {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

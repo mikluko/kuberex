@@ -42,6 +42,9 @@ tailscale:
 # The login server's accounts file, rendered as JSON: version, accounts and defaults; it decides who gets in and as which account. See https://www.superlogical.com/rex/docs/linux/login-server#accounts-file. The pod creates every account it names, but root and "*", at start, with zsh and a home in /home/<name>, kept in home/ of the state volume; an existing home keeps its owner's uid.
 accounts: {}
 
+# Secrets an account can read, account name (named in accounts.accounts) to a list of Secret names in the release's namespace. At every start each Secret's keys are copied to /run/kuberex/secrets/<account>/<secret>/<key>, owned by the account with mode 0400 and readable by no other account; a change to a Secret reaches the account at the next start.
+accountSecrets: {}
+
 # Commands started at every start, each in a Rex session of its account's own server: account (named in accounts.accounts), label (the session's), command (a list of arguments, run through the account's login shell environment) and optionally cwd. A session that already carries the label, restored from before the restart, is replaced. A command that exits is not restarted; its terminal stays open.
 services: []
 

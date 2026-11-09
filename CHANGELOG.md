@@ -7,10 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-09
+
 ### Added
 
 - Chart values `extraVolumes` and `extraVolumeMounts`, which add volumes to
   the pod and mount them in the server's container.
+- Account Secrets: chart value `accountSecrets` mounts Secrets per account,
+  and the entrypoint copies their keys through `KUBEREX_SECRETS` to
+  `/run/kuberex/secrets/<account>/<secret>/<key>`, readable only by that
+  account.
 
 ## [0.15.0] - 2026-11-09
 

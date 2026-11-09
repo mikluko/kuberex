@@ -31,12 +31,14 @@ It reads:
 | `TS_SOCKET`                 | LocalAPI socket of the `tailscaled`; required                                     |
 | `REX_TAILNET_PORT`          | tailnet port the login server serves plain HTTP on; default `80`                  |
 | `KUBEREX_APT`               | directory of apt additions; none when unset                                       |
+| `KUBEREX_SECRETS`           | directory of [account Secrets](#account-secrets); none when unset                 |
 | `KUBEREX_SERVICES`          | [services file](#services); none when unset                                       |
 
 At each start, in this order, it:
 
 1. copies `$KUBEREX_APT/sources/*.sources` to `/etc/apt/sources.list.d` and `$KUBEREX_APT/keyrings/*` to `/etc/apt/keyrings`, and, when `$KUBEREX_APT/packages` is not empty, runs `apt-get update` and `apt-get install` with its words as arguments
 1. creates every account the accounts file names, except `root` and `"*"`, with zsh and a home in `/home/<account>`; a home that exists keeps the uid that owns it, and a new home takes the next free uid from 1000
+1. copies the [account Secrets](#account-secrets) in `$KUBEREX_SECRETS`
 1. opens `/run/rex` to every account for traversal
 1. makes `/tmp` owned by root with mode `1777`, and `/tmp/user/<uid>` with mode `0700` for every account it created
 1. starts the services in `$KUBEREX_SERVICES`, beside the next step
@@ -45,6 +47,13 @@ At each start, in this order, it:
 Each account's server runs in a PAM session, where `pam_tmpdir` sets `TMPDIR` and `TMP` to `/tmp/user/<uid>`, a directory only the account can open.
 
 A client picks an account with `http://<account>@<host>:<port>`; without one, the file's `defaults` decide.
+
+### Account Secrets
+
+`$KUBEREX_SECRETS` holds a directory per account, and in it a directory per Secret, as `<account>/<secret>/<key>`.
+At each start every key is copied to `/run/kuberex/secrets/<account>/<secret>/<key>`, owned by the account with mode `0400`.
+`/run/kuberex/secrets/<account>` opens only to the account, and `/run/kuberex/secrets` lists nothing to accounts.
+The copies are made at start, so a changed Secret reaches the account at the next start.
 
 ### Services
 
@@ -105,6 +114,7 @@ The pod runs `tailscaled` from `tailscale/tailscale` as a sidecar in userspace n
 | `apt.sources`                      | apt sources, file name without `.sources` to deb822 content                |
 | `apt.keyrings`                     | keyrings for them, file name in `/etc/apt/keyrings` to content            |
 | `apt.packages`                     | `apt-get install` arguments                                                |
+| `accountSecrets`                   | account to a list of Secret names in the release's namespace, each mounted at `/etc/kuberex/secrets/<account>/<secret>` as an [account Secret](#account-secrets); each account must be named in `accounts` |
 | `services`                         | the [services](#services), as a list; each `account` must be named in `accounts` |
 | `persistence.size`                 | size of the PersistentVolumeClaim `state-<release>-0` the StatefulSet creates for `/var/lib/rex`; default `10Gi` |
 | `persistence.storageClassName`     | storage class of that claim; default the cluster's                         |

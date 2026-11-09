@@ -10,6 +10,9 @@
 #                              before the server starts: *.sources files,
 #                              keyrings referenced by them, and a packages
 #                              file of apt-get install arguments
+#   KUBEREX_SECRETS            optional directory of Secrets per account, each
+#                              at <account>/<secret>, copied where only that
+#                              account can read them
 #   KUBEREX_SERVICES           optional services file for kuberex-services,
 #                              whose services start beside the login server
 #
@@ -70,6 +73,26 @@ create_accounts() {
   done
 }
 
+# install_secrets copies the keys of each Secret at $1/<account>/<secret> to
+# /run/kuberex/secrets/<account>/<secret>, owned by the account with mode 0400
+# in a directory only it can open. The root filesystem is the container's, so
+# the copies go with the container.
+install_secrets() {
+  install -d -o 0 -g 0 -m 0711 /run/kuberex/secrets
+  for src in "$1"/*/*/; do
+    [ -d "$src" ] || continue
+    secret=$(basename "$src")
+    account=$(basename "$(dirname "$src")")
+    dst=/run/kuberex/secrets/$account
+    install -d -o "$account" -g "$account" -m 0700 "$dst" "$dst/$secret"
+    for key in "$src"*; do
+      if [ -f "$key" ]; then
+        install -o "$account" -g "$account" -m 0400 "$key" "$dst/$secret/"
+      fi
+    done
+  done
+}
+
 # create_tmpdirs makes /tmp/user/<uid>, pam_tmpdir's TMPDIR, for every account
 # accounts file $1 names. The login server runs PAM with the account's uid,
 # which can create neither that directory nor the root-owned /tmp/user that
@@ -94,6 +117,9 @@ if [ -n "${KUBEREX_APT:-}" ]; then
   install_packages "$KUBEREX_APT"
 fi
 create_accounts "$REX_LOGIN_SERVER_ACCOUNTS"
+if [ -n "${KUBEREX_SECRETS:-}" ]; then
+  install_secrets "$KUBEREX_SECRETS"
+fi
 # Each account reaches its runtime directory below /run/rex.
 chmod 0755 /run/rex
 # The pod's fsGroup leaves an emptyDir /tmp at 2777 in that group, where any

@@ -1,6 +1,11 @@
 {{- if not (.Values.accounts).accounts }}
 {{- fail "accounts.accounts names no account: the login server would admit nobody" }}
 {{- end }}
+{{- range $account, $_ := .Values.accountSecrets }}
+{{- if or (eq $account "*") (not (hasKey $.Values.accounts.accounts $account)) }}
+{{- fail (printf "accountSecrets: account %q is not named in accounts.accounts" $account) }}
+{{- end }}
+{{- end }}
 {{- range $i, $s := .Values.services }}
 {{- if or (not $s.account) (not $s.label) (not $s.command) }}
 {{- fail (printf "services[%d] needs account, label and command" $i) }}
