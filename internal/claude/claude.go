@@ -1,15 +1,15 @@
-// Command kuberex-claude resumes the Claude Code session a Rex block ran when
-// its Rex server stopped, once the server has restored the block.
+// Package claude resumes the Claude Code session a Rex block ran when its Rex
+// server stopped, once the server has restored the block.
 //
-//	kuberex-claude record   SessionStart hook: keeps the session for $REX_BLOCK
-//	kuberex-claude forget   SessionEnd hook: drops it when the person quit
-//	kuberex-claude resume   from the block's shell: runs claude --resume
+//	kuberexctl claude record   SessionStart hook: keeps the session for $REX_BLOCK
+//	kuberexctl claude forget   SessionEnd hook: drops it when the person quit
+//	kuberexctl claude resume   from the block's shell: runs claude --resume
 //
 // Sessions are kept in $XDG_STATE_HOME/kuberex/claude, by default
 // ~/.local/state/kuberex/claude. Only an interactive session started outside
 // any other Claude Code session is kept. A block's session is resumed at most
 // once per Rex server, and never under the server it last ran under.
-package main
+package claude
 
 import (
 	"encoding/json"
@@ -24,7 +24,7 @@ import (
 	"syscall"
 )
 
-// app holds what kuberex-claude reads from outside.
+// app holds what the claude commands read from outside.
 type app struct {
 	getenv func(string) string
 	proc   procfs
@@ -33,8 +33,8 @@ type app struct {
 	liveBlocks func() (map[string]bool, error)
 }
 
-// hookInput holds the fields of a Claude Code hook's input that
-// kuberex-claude reads.
+// hookInput holds the fields of a Claude Code hook's input that record and
+// forget read.
 type hookInput struct {
 	SessionID string `json:"session_id"`
 	Cwd       string `json:"cwd"`
@@ -238,7 +238,7 @@ func execResume(sess *session) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "kuberex-claude: resuming Claude Code session %s in %s\n", sess.ID, sess.Cwd)
+	fmt.Fprintf(os.Stderr, "kuberexctl claude: resuming Claude Code session %s in %s\n", sess.ID, sess.Cwd)
 	return syscall.Exec(claude, []string{"claude", "--resume", sess.ID}, os.Environ())
 }
 
@@ -268,18 +268,21 @@ func run(cmd string) error {
 	return errUsage
 }
 
-var errUsage = errors.New("usage: kuberex-claude record|forget|resume")
+var errUsage = errors.New("usage: kuberexctl claude record|forget|resume")
 
-func main() {
-	if len(os.Args) != 2 {
+// Main runs "kuberexctl claude" with args, the words after "claude", and
+// returns its exit code.
+func Main(args []string) int {
+	if len(args) != 1 {
 		fmt.Fprintln(os.Stderr, errUsage)
-		os.Exit(2)
+		return 2
 	}
-	if err := run(os.Args[1]); err != nil {
-		fmt.Fprintln(os.Stderr, "kuberex-claude:", err)
+	if err := run(args[0]); err != nil {
+		fmt.Fprintln(os.Stderr, "kuberexctl claude:", err)
 		if errors.Is(err, errUsage) {
-			os.Exit(2)
+			return 2
 		}
-		os.Exit(1)
+		return 1
 	}
+	return 0
 }

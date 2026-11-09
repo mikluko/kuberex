@@ -1,9 +1,9 @@
-// Command kuberex-accounts prints the accounts a Rex login server's accounts
-// file names, one per line in file order, for kuberex to create.
+// Package accountsfile prints the accounts a Rex login server's accounts file
+// names, one per line in file order, for kuberex to create.
 //
 // The file is HuJSON, as the login server reads it. "*" and "root" are not
 // printed: "*" stands for every regular account and root always exists.
-package main
+package accountsfile
 
 import (
 	"bytes"
@@ -50,22 +50,25 @@ func accounts(src []byte) ([]string, error) {
 	return names, nil
 }
 
-func main() {
-	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: kuberex-accounts ACCOUNTS-FILE")
-		os.Exit(2)
+// Main runs "kuberexctl accounts" with args, the words after "accounts", and
+// returns its exit code.
+func Main(args []string) int {
+	if len(args) != 1 {
+		fmt.Fprintln(os.Stderr, "usage: kuberexctl accounts ACCOUNTS-FILE")
+		return 2
 	}
-	src, err := os.ReadFile(os.Args[1])
+	src, err := os.ReadFile(args[0])
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "kuberex-accounts:", err)
-		os.Exit(1)
+		fmt.Fprintln(os.Stderr, "kuberexctl accounts:", err)
+		return 1
 	}
 	names, err := accounts(src)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "kuberex-accounts: %s: %v\n", os.Args[1], err)
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "kuberexctl accounts: %s: %v\n", args[0], err)
+		return 1
 	}
 	for _, n := range names {
 		fmt.Println(n)
 	}
+	return 0
 }

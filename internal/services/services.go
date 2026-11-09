@@ -1,14 +1,14 @@
-// Command kuberex-services starts the services a JSON file lists: for each, a
-// Rex session labelled as the service, running its command in its account's
-// own Rex server. It runs as root at pod start and exits once every service
-// has started; it does not restart a command that exits.
+// Package services starts the services a JSON file lists: for each, a Rex
+// session labelled as the service, running its command in its account's own
+// Rex server. "kuberexctl services" runs as root at pod start and exits once
+// every service has started; it does not restart a command that exits.
 //
 // The account's server is started the way the login server starts one, with
 // rex login-server session, so the login server adopts it rather than starting
 // a second. A session that already carries the label is one the server
 // restored from before the pod restarted, holding a bare shell: it is killed,
 // and the service starts in a new session of the same label.
-package main
+package services
 
 import (
 	"encoding/json"
@@ -117,35 +117,39 @@ func startService(h host, s service, timeout time.Duration) error {
 	return err
 }
 
-func main() {
-	runtimeRoot := flag.String("runtime-root", "/run/rex", "the login server's runtime root")
-	timeout := flag.Duration("timeout", 30*time.Second, "how long to wait for an account's Rex server to start")
-	flag.Parse()
-	if flag.NArg() != 1 {
-		fmt.Fprintln(os.Stderr, "usage: kuberex-services [flags] SERVICES-FILE")
-		os.Exit(2)
+// Main runs "kuberexctl services" with args, the words after "services", and
+// returns its exit code.
+func Main(args []string) int {
+	fs := flag.NewFlagSet("services", flag.ExitOnError)
+	runtimeRoot := fs.String("runtime-root", "/run/rex", "the login server's runtime root")
+	timeout := fs.Duration("timeout", 30*time.Second, "how long to wait for an account's Rex server to start")
+	_ = fs.Parse(args)
+	if fs.NArg() != 1 {
+		fmt.Fprintln(os.Stderr, "usage: kuberexctl services [flags] SERVICES-FILE")
+		return 2
 	}
-	src, err := os.ReadFile(flag.Arg(0))
+	src, err := os.ReadFile(fs.Arg(0))
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "kuberex-services:", err)
-		os.Exit(1)
+		fmt.Fprintln(os.Stderr, "kuberexctl services:", err)
+		return 1
 	}
 	svcs, err := parseServices(src)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "kuberex-services: %s: %v\n", flag.Arg(0), err)
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "kuberexctl services: %s: %v\n", fs.Arg(0), err)
+		return 1
 	}
 	h := pod{runtimeRoot: *runtimeRoot}
 	var failed error
 	for _, s := range svcs {
 		if err := startService(h, s, *timeout); err != nil {
-			fmt.Fprintf(os.Stderr, "kuberex-services: %s of %s: %v\n", s.Label, s.Account, err)
+			fmt.Fprintf(os.Stderr, "kuberexctl services: %s of %s: %v\n", s.Label, s.Account, err)
 			failed = errors.Join(failed, err)
 			continue
 		}
-		fmt.Fprintf(os.Stderr, "kuberex-services: started %s as %s\n", s.Label, s.Account)
+		fmt.Fprintf(os.Stderr, "kuberexctl services: started %s as %s\n", s.Label, s.Account)
 	}
 	if failed != nil {
-		os.Exit(1)
+		return 1
 	}
+	return 0
 }

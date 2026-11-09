@@ -8,10 +8,10 @@
   },
   "hooks": {
     "SessionStart": [
-      { "hooks": [{ "type": "command", "command": "/usr/local/bin/kuberex-claude record", "async": true }] }
+      { "hooks": [{ "type": "command", "command": "/usr/local/bin/kuberexctl claude record", "async": true }] }
     ],
     "SessionEnd": [
-      { "hooks": [{ "type": "command", "command": "/usr/local/bin/kuberex-claude forget" }] }
+      { "hooks": [{ "type": "command", "command": "/usr/local/bin/kuberexctl claude forget" }] }
     ]
   }
 }

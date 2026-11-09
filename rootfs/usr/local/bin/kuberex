@@ -13,7 +13,7 @@
 #   KUBEREX_SECRETS            optional directory of Secrets per account, each
 #                              at <account>/<secret>, copied where only that
 #                              account can read them
-#   KUBEREX_SERVICES           optional services file for kuberex-services,
+#   KUBEREX_SERVICES           optional services file for kuberexctl services,
 #                              whose services start beside the login server
 #   KUBEREX_SHUTDOWN_ACCOUNTS  optional accounts, separated by spaces, that
 #                              may shut the container down with
@@ -65,7 +65,7 @@ create_account() {
 # home are created first, so a new account cannot take the uid an existing
 # home belongs to.
 create_accounts() {
-  names=$(kuberex-accounts "$1")
+  names=$(kuberexctl accounts "$1")
   for name in $names; do
     if [ -d "/home/$name" ]; then
       create_account "$name"
@@ -102,7 +102,7 @@ install_secrets() {
 # pam_tmpdir requires above it.
 create_tmpdirs() {
   install -d -o 0 -g 0 -m 0711 /tmp/user
-  for name in $(kuberex-accounts "$1"); do
+  for name in $(kuberexctl accounts "$1"); do
     install -d -o "$name" -g "$name" -m 0700 "/tmp/user/$(id -u "$name")"
   done
 }
@@ -131,12 +131,12 @@ chown 0:0 /tmp
 chmod 01777 /tmp
 create_tmpdirs "$REX_LOGIN_SERVER_ACCOUNTS"
 # In a subshell that exits at once, so dumb-init rather than the login server
-# reaps kuberex-services and the account servers it starts.
+# reaps kuberexctl services and the account servers it starts.
 if [ -n "${KUBEREX_SERVICES:-}" ]; then
-  (kuberex-services "$KUBEREX_SERVICES" &)
+  (kuberexctl services "$KUBEREX_SERVICES" &)
 fi
-# The exec below keeps this process's ID, so kuberexctl signals the login
-# server by it.
+# The exec below keeps this process's ID, so kuberexctl serve signals the
+# login server by it.
 if [ -n "${KUBEREX_SHUTDOWN_ACCOUNTS:-}" ]; then
   install -d -o 0 -g 0 -m 0755 /run/kuberex
   (kuberexctl serve --login-server-pid $$ --accounts "$KUBEREX_SHUTDOWN_ACCOUNTS" &)

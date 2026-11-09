@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-09
+
+### Changed
+
+- **Breaking:** the image's commands are subcommands of one binary,
+  `kuberexctl`: `kuberex-accounts` is now `kuberexctl accounts`,
+  `kuberex-claude` is now `kuberexctl claude`, and `kuberex-services` is now
+  `kuberexctl services`. Claude Code hooks copied into `~/.claude/settings.json`
+  from the reference must call `/usr/local/bin/kuberexctl claude record` and
+  `/usr/local/bin/kuberexctl claude forget`.
+
+### Removed
+
+- **Breaking:** the binaries `kuberex-accounts`, `kuberex-claude` and
+  `kuberex-services`.
+
 ## [0.20.0] - 2026-11-09
 
 ### Changed

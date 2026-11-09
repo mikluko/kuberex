@@ -73,7 +73,7 @@ The services file is a JSON array of services, each with these fields:
 | `command` | the command and its arguments, run through the account's login shell environment; required |
 | `cwd`     | the directory to start in; the account's home when empty                       |
 
-`kuberex-services` starts each account's server the way the login server does, which then serves connections to that account from the same server.
+`kuberexctl services` starts each account's server the way the login server does, which then serves connections to that account from the same server.
 A session that already carries the label, which the server restored from before the restart with a bare shell in it, is replaced by a new one running the command.
 A command that exits is not restarted, and its terminal stays open with its last output.
 
@@ -108,7 +108,7 @@ A Claude Code session that was running in a pane is resumed there: at the shell'
 - A session quit with `/exit` or by logging out is not resumed.
 - The flags `claude` was started with are not passed again; set defaults such as the model or the permission mode in `~/.claude/settings.json`.
 
-Claude Code hooks in `/etc/claude-code/managed-settings.d/kuberex.json` run `kuberex-claude`, which keeps the session of each pane in `~/.local/state/kuberex/claude`.
+Claude Code hooks in `/etc/claude-code/managed-settings.d/kuberex.json` run `kuberexctl claude`, which keeps the session of each pane in `~/.local/state/kuberex/claude`.
 When an account receives [server-managed settings](https://code.claude.com/docs/en/server-managed-settings.md) from its organization, Claude Code skips managed settings files, these hooks with them.
 The same hooks in `~/.claude/settings.json` bring sessions back:
 
@@ -116,10 +116,10 @@ The same hooks in `~/.claude/settings.json` bring sessions back:
 {
   "hooks": {
     "SessionStart": [
-      { "hooks": [{ "type": "command", "command": "/usr/local/bin/kuberex-claude record", "async": true }] }
+      { "hooks": [{ "type": "command", "command": "/usr/local/bin/kuberexctl claude record", "async": true }] }
     ],
     "SessionEnd": [
-      { "hooks": [{ "type": "command", "command": "/usr/local/bin/kuberex-claude forget" }] }
+      { "hooks": [{ "type": "command", "command": "/usr/local/bin/kuberexctl claude forget" }] }
     ]
   }
 }

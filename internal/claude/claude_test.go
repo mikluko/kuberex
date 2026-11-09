@@ -1,4 +1,4 @@
-package main
+package claude
 
 import (
 	"errors"
@@ -70,7 +70,7 @@ func tree() fakeProc {
 		pidRex:    {ppid: 1, comm: "rex", start: 9000},
 		pidShell:  {ppid: pidRex, comm: "zsh", start: 9100},
 		pidClaude: {ppid: pidShell, comm: "claude", start: 9200, environ: []string{"HOME=/home/alice"}, cmdline: []string{"claude", "--model", "opus"}},
-		pidHook:   {ppid: pidClaude, comm: "kuberex-claude", start: 9300},
+		pidHook:   {ppid: pidClaude, comm: "kuberexctl", start: 9300},
 		pidNested: {ppid: pidClaude, comm: "claude", start: 9400, environ: []string{"CLAUDECODE=1", "CLAUDE_CODE_CHILD_SESSION=1"}, cmdline: []string{"claude", "-p", "hi"}},
 		pidLone:   {ppid: 1, comm: "claude", start: 9500, cmdline: []string{"claude"}},
 	}
