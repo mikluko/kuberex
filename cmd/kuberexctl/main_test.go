@@ -45,10 +45,10 @@ func TestDecide(t *testing.T) {
 		req   string
 		start bool
 	}{
-		{"allowed account", 1000, "restart", true},
-		{"account not allowed", 1001, "restart", false},
-		{"unknown uid", 4242, "restart", false},
-		{"unknown request", 1000, "stop", false},
+		{"allowed account", 1000, "shutdown", true},
+		{"account not allowed", 1001, "shutdown", false},
+		{"unknown uid", 4242, "shutdown", false},
+		{"unknown request", 1000, "restart", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -64,20 +64,20 @@ func TestDecide(t *testing.T) {
 	}
 }
 
-func TestDecideOnlyFirstRestartStarts(t *testing.T) {
+func TestDecideOnlyFirstShutdownStarts(t *testing.T) {
 	s := newServer(parseAccounts("city"), lookupFake, &fakeHost{})
-	if _, start := s.decide(1000, "restart"); !start {
-		t.Fatal("first request did not start a restart")
+	if _, start := s.decide(1000, "shutdown"); !start {
+		t.Fatal("first request did not start a shutdown")
 	}
-	if reply, start := s.decide(1000, "restart"); start {
-		t.Fatalf("second request started another restart: %q", reply)
+	if reply, start := s.decide(1000, "shutdown"); start {
+		t.Fatalf("second request started another shutdown: %q", reply)
 	}
 }
 
-func TestRestartStopsEveryServerBeforeTerminating(t *testing.T) {
+func TestShutdownStopsEveryServerBeforeTerminating(t *testing.T) {
 	h := &fakeHost{running: []string{"city", "bao", "ops"}, failOn: "bao"}
 	s := newServer(nil, lookupFake, h)
-	if err := s.restart(); err != nil {
+	if err := s.shutdown(); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{"stop city", "stop bao", "stop ops", "sync", "terminate"}
@@ -95,8 +95,8 @@ func TestParseAccounts(t *testing.T) {
 }
 
 func TestRequestWithoutServer(t *testing.T) {
-	_, err := request(t.TempDir()+"/control.sock", "restart")
-	if err == nil || err.Error() != "restart is not enabled in this pod" {
+	_, err := request(t.TempDir()+"/control.sock", "shutdown")
+	if err == nil || err.Error() != "shutdown is not enabled in this pod" {
 		t.Fatalf("err = %v", err)
 	}
 }

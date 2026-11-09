@@ -48,8 +48,8 @@ accountSecrets: {}
 # Commands started at every start, each in a Rex session of its account's own server: account (named in accounts.accounts), label (the session's), command (a list of arguments, run through the account's login shell environment) and optionally cwd. A session that already carries the label, restored from before the restart, is replaced. A command that exits is not restarted; its terminal stays open.
 services: []
 
-# Accounts (named in accounts.accounts) that may restart the server container with "kuberex-control restart": every account's Rex server stops cleanly and the container exits with code 0, for Kubernetes to start it again.
-restartAccounts: []
+# Accounts (named in accounts.accounts) that may shut the server container down with "kuberexctl shutdown": every account's Rex server stops cleanly and the container exits with code 0. The pod's restart policy, Always, then starts it again.
+shutdownAccounts: []
 
 apt:
   # Apt sources added at every start, file name without .sources to deb822 content. A Signed-By path names a keyring in /etc/apt/keyrings.

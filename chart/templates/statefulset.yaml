@@ -114,8 +114,8 @@ spec:
             - name: KUBEREX_SERVICES
               value: /etc/kuberex/services.json
             {{- end }}
-            {{- with .Values.restartAccounts }}
-            - name: KUBEREX_RESTART_ACCOUNTS
+            {{- with .Values.shutdownAccounts }}
+            - name: KUBEREX_SHUTDOWN_ACCOUNTS
               value: {{ join " " . | quote }}
             {{- end }}
             {{- range $k, $v := .Values.env }}

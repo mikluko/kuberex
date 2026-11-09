@@ -1,12 +1,12 @@
-// Command kuberex-control lets an account end the pod's server container
-// gracefully, for Kubernetes to start it again.
+// Command kuberexctl lets an account shut the pod's server container down
+// gracefully. Whether the container starts again is up to its restart policy.
 //
-// "kuberex-control serve" runs as root beside the login server and listens on
-// a unix socket. "kuberex-control restart", run as an account the server
-// allows, asks it to restart. The server then stops every account's Rex
-// server, so each records a clean shutdown and restores its sessions at the
-// next start, syncs the filesystems and sends SIGTERM to the login server,
-// whose exit ends the container with code 0.
+// "kuberexctl serve" runs as root beside the login server and listens on a
+// unix socket. "kuberexctl shutdown", run as an account the server allows,
+// asks it to shut down. The server then stops every account's Rex server, so
+// each records a clean shutdown and restores its sessions at the next start,
+// syncs the filesystems and sends SIGTERM to the login server, whose exit
+// ends the container with code 0.
 package main
 
 import (
@@ -31,15 +31,15 @@ func main() {
 	switch os.Args[1] {
 	case "serve":
 		serveMain(os.Args[2:])
-	case "restart":
-		os.Exit(restartMain(os.Args[2:]))
+	case "shutdown":
+		os.Exit(shutdownMain(os.Args[2:]))
 	default:
 		usage()
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: kuberex-control serve --login-server-pid PID --accounts NAMES | kuberex-control restart")
+	fmt.Fprintln(os.Stderr, "usage: kuberexctl serve --login-server-pid PID --accounts NAMES | kuberexctl shutdown")
 	os.Exit(2)
 }
 
@@ -48,9 +48,9 @@ func serveMain(args []string) {
 	socket := fs.String("socket", defaultSocket, "unix socket to listen on")
 	runtimeRoot := fs.String("runtime-root", "/run/rex", "the login server's runtime root")
 	pid := fs.Int("login-server-pid", 0, "process ID of the login server")
-	accounts := fs.String("accounts", "", "accounts allowed to restart, separated by spaces or commas")
+	accounts := fs.String("accounts", "", "accounts allowed to shut down, separated by spaces or commas")
 	_ = fs.Parse(args)
-	log.SetPrefix("kuberex-control: ")
+	log.SetPrefix("kuberexctl: ")
 	log.SetFlags(0)
 	if *pid <= 0 {
 		log.Fatal("--login-server-pid is required")
@@ -68,20 +68,20 @@ func parseAccounts(s string) map[string]bool {
 	return m
 }
 
-func restartMain(args []string) int {
-	fs := flag.NewFlagSet("restart", flag.ExitOnError)
-	socket := fs.String("socket", defaultSocket, "unix socket of kuberex-control serve")
+func shutdownMain(args []string) int {
+	fs := flag.NewFlagSet("shutdown", flag.ExitOnError)
+	socket := fs.String("socket", defaultSocket, "unix socket of kuberexctl serve")
 	_ = fs.Parse(args)
-	reply, err := request(*socket, "restart")
+	reply, err := request(*socket, "shutdown")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "kuberex-control: %v\n", err)
+		fmt.Fprintf(os.Stderr, "kuberexctl: %v\n", err)
 		return 1
 	}
 	if reply != "ok" {
-		fmt.Fprintf(os.Stderr, "kuberex-control: %s\n", strings.TrimPrefix(reply, "error: "))
+		fmt.Fprintf(os.Stderr, "kuberexctl: %s\n", strings.TrimPrefix(reply, "error: "))
 		return 1
 	}
-	fmt.Println("kuberex-control: restarting the container")
+	fmt.Println("kuberexctl: shutting down the container")
 	return 0
 }
 
@@ -90,7 +90,7 @@ func request(socket, req string) (string, error) {
 	c, err := net.Dial("unix", socket)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return "", errors.New("restart is not enabled in this pod")
+			return "", errors.New("shutdown is not enabled in this pod")
 		}
 		return "", err
 	}
@@ -106,7 +106,7 @@ func request(socket, req string) (string, error) {
 	return strings.TrimSpace(reply), nil
 }
 
-// host is what a restart needs from the pod.
+// host is what a shutdown needs from the pod.
 type host interface {
 	// servers returns the accounts whose Rex server is running.
 	servers() ([]string, error)
@@ -122,12 +122,12 @@ type server struct {
 	allowed map[string]bool
 	lookup  func(uid uint32) (string, error)
 	h       host
-	// grace is how long a restart waits after replying, so the requesting
+	// grace is how long a shutdown waits after replying, so the requesting
 	// process sees the reply before its own server stops.
 	grace time.Duration
 
-	mu         sync.Mutex
-	restarting bool
+	mu           sync.Mutex
+	shuttingDown bool
 }
 
 func newServer(allowed map[string]bool, lookup func(uint32) (string, error), h host) *server {
@@ -135,28 +135,28 @@ func newServer(allowed map[string]bool, lookup func(uint32) (string, error), h h
 }
 
 // decide answers req from the process running as uid, and reports whether a
-// restart is to begin. Only the first permitted request starts one.
+// shutdown is to begin. Only the first permitted request starts one.
 func (s *server) decide(uid uint32, req string) (reply string, start bool) {
 	name, err := s.lookup(uid)
 	if err != nil || !s.allowed[name] {
-		return fmt.Sprintf("error: uid %d is not allowed to restart the container", uid), false
+		return fmt.Sprintf("error: uid %d is not allowed to shut the container down", uid), false
 	}
-	if req != "restart" {
+	if req != "shutdown" {
 		return fmt.Sprintf("error: unknown request %q", req), false
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.restarting {
-		return "error: the container is already restarting", false
+	if s.shuttingDown {
+		return "error: the container is already shutting down", false
 	}
-	s.restarting = true
+	s.shuttingDown = true
 	return "ok", true
 }
 
-// restart stops every account's server, syncs and terminates the login
+// shutdown stops every account's server, syncs and terminates the login
 // server. A server that fails to stop is logged and does not hold up the
 // others.
-func (s *server) restart() error {
+func (s *server) shutdown() error {
 	names, err := s.h.servers()
 	if err != nil {
 		log.Printf("listing account servers: %v", err)
@@ -212,10 +212,10 @@ func (s *server) serve(c net.Conn) {
 		log.Printf("refused %q from uid %d: %s", strings.TrimSpace(req), uid, reply)
 		return
 	}
-	log.Printf("restart requested by uid %d", uid)
+	log.Printf("shutdown requested by uid %d", uid)
 	go func() {
 		time.Sleep(s.grace)
-		if err := s.restart(); err != nil {
+		if err := s.shutdown(); err != nil {
 			log.Printf("terminating the login server: %v", err)
 		}
 	}()

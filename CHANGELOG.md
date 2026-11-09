@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-09
+
+### Changed
+
+- **Breaking:** `kuberex-control restart` is now `kuberexctl shutdown`: it
+  guarantees only that the container ends, and the pod's restart policy
+  starts it again. Chart value `restartAccounts` is now `shutdownAccounts`,
+  and `KUBEREX_RESTART_ACCOUNTS` is now `KUBEREX_SHUTDOWN_ACCOUNTS`.
+
 ## [0.19.0] - 2026-11-09
 
 ### Added

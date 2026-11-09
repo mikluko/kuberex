@@ -29,7 +29,7 @@ services:
     label: supervisor
     cwd: /home/bob/city
     command: ["gc", "supervisor", "run"]
-restartAccounts: [bob]
+shutdownAccounts: [bob]
 apt:
   sources:
     example: |
