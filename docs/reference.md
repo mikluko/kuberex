@@ -110,6 +110,8 @@ The pod runs `tailscaled` from `tailscale/tailscale` as a sidecar in userspace n
 | `persistence.storageClassName`     | storage class of that claim; default the cluster's                         |
 | `stateVolume`                      | volume source of `/var/lib/rex` in place of that claim, rendered as given, such as `hostPath` |
 | `networkPolicy.enabled`            | a CiliumNetworkPolicy allowing egress only to kube-dns, the kube-apiserver and outside the cluster |
+| `extraVolumes`                     | volumes added to the pod, rendered as given                                |
+| `extraVolumeMounts`                | mounts added to the server's container, rendered as given                  |
 
 The chart mounts `home/` of the state volume at `/home`, so homes outlive the pod.
 A change to `accounts` or `apt` restarts the pod.

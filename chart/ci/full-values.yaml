@@ -50,6 +50,14 @@ networkPolicy:
   enabled: true
 env:
   TZ: UTC
+extraVolumes:
+  - name: example
+    configMap:
+      name: example
+extraVolumeMounts:
+  - name: example
+    mountPath: /etc/example
+    readOnly: true
 resources:
   requests:
     cpu: "1"

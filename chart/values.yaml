@@ -69,6 +69,11 @@ networkPolicy:
 # Extra environment variables of the server and its terminals, name to value.
 env: {}
 
+# Volumes added to the pod, rendered as given, such as a Secret or a ConfigMap.
+extraVolumes: []
+# Mounts added to the server's container, rendered as given; each names a volume of extraVolumes.
+extraVolumeMounts: []
+
 # Resources of the container.
 resources: {}
 # Annotations of the pod.

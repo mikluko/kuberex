@@ -152,6 +152,9 @@ spec:
               mountPath: /tmp
             - name: tailscale
               mountPath: /run/tailscale
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -188,6 +191,9 @@ spec:
           emptyDir: {}
         - name: tailscale
           emptyDir: {}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
