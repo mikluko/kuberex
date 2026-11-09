@@ -110,6 +110,8 @@ jobs:
           helm push "$RUNNER_TEMP/chart/kuberex-$VERSION.tgz" "$CHART_REPOSITORY"
 
   # Last, so the tag exists only once the image and the chart it names do.
+  # rexcity's release workflow moves its FROM to releases/latest and relies
+  # on this.
   release:
     needs: [plan, image, chart]
     if: ${{ !failure() && !cancelled() && needs.plan.outputs.due == 'true' }}
