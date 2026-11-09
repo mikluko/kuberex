@@ -1,0 +1,122 @@
+name: upgrade
+
+# Moves Dockerfile's FROM to Debian's newest trixie-YYYYMMDD snapshot and
+# REX_VERSION to the newest Rex in the channel apt/sources.list.d/rex.sources
+# names, notes each move under Changed in CHANGELOG.md's [Unreleased], turns
+# [Unreleased] into the version the changelog release action computes, and
+# pushes the result to main for the release workflow to publish. Rex's snapshot
+# index keeps only its newest builds, so this daily run is what keeps the image
+# buildable.
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  BASE: debian
+
+jobs:
+  pin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: https://github.com/actions/checkout@v5
+
+      - name: Resolve newest base snapshot
+        id: base
+        run: |
+          # library/debian on Docker Hub: only exact trixie-YYYYMMDD tags, which
+          # excludes trixie, trixie-slim and trixie-YYYYMMDD-slim.
+          version=$(curl -fsSL 'https://hub.docker.com/v2/repositories/library/debian/tags?page_size=100&name=trixie-' \
+            | jq -r '.results[].name | select(test("^trixie-[0-9]{8}$"))' \
+            | sort | tail -1)
+          if [ -z "$version" ]; then
+            echo "::error::no trixie-YYYYMMDD tag of $BASE found"; exit 1
+          fi
+          current=$(sed -nE "s|^FROM $BASE:([^ ]+).*|\1|p" Dockerfile)
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+          echo "moved=$([ "$version" != "$current" ] && echo true || echo false)" >>"$GITHUB_OUTPUT"
+
+      # apt in the new base reads the index through the image's own source and
+      # keyring, so the signature is checked and versions compare as dpkg
+      # compares them. A version is taken only once both architectures have it.
+      - name: Resolve newest Rex
+        id: rex
+        env:
+          DEBIAN: ${{ steps.base.outputs.version }}
+        run: |
+          candidates=$(docker run --rm -v "$PWD/apt:/src:ro" "$BASE:$DEBIAN" sh -ec '
+            apt-get update -qq
+            DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --no-install-recommends ca-certificates >/dev/null
+            rm -f /etc/apt/sources.list.d/*
+            cp -r /src/keyrings /etc/apt/
+            cp /src/sources.list.d/rex.sources /etc/apt/sources.list.d/
+            for arch in amd64 arm64; do
+              [ "$arch" = "$(dpkg --print-architecture)" ] || dpkg --add-architecture "$arch"
+            done
+            apt-get update -qq
+            for arch in amd64 arm64; do
+              apt-cache policy "rex:$arch" | sed -n "s/^ *Candidate: //p"
+            done')
+          amd64=$(echo "$candidates" | sed -n 1p)
+          arm64=$(echo "$candidates" | sed -n 2p)
+          version=
+          if [ -z "$amd64" ] || [ "$amd64" = "(none)" ] || [ -z "$arm64" ] || [ "$arm64" = "(none)" ]; then
+            echo "::error::no rex package for amd64 and arm64 in the channel apt/sources.list.d/rex.sources names"
+            exit 1
+          elif [ "$amd64" != "$arm64" ]; then
+            echo "::warning::Rex is $amd64 for amd64 and $arm64 for arm64; it moves once both have the same"
+          else
+            version=$amd64
+          fi
+          current=$(sed -nE 's|^ARG REX_VERSION=(.+)|\1|p' Dockerfile)
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+          echo "moved=$([ -n "$version" ] && [ "$version" != "$current" ] && echo true || echo false)" >>"$GITHUB_OUTPUT"
+
+      - name: Pin base
+        if: steps.base.outputs.moved == 'true'
+        env:
+          VERSION: ${{ steps.base.outputs.version }}
+        run: sed -i -E "s|^FROM $BASE:[^ ]+|FROM $BASE:$VERSION|" Dockerfile
+      - if: steps.base.outputs.moved == 'true'
+        uses: https://sarak.sh/actions/changelog/append@v1
+        with:
+          section: Changed
+          note: Base image is `${{ env.BASE }}:${{ steps.base.outputs.version }}`.
+
+      - name: Pin Rex
+        if: steps.rex.outputs.moved == 'true'
+        env:
+          VERSION: ${{ steps.rex.outputs.version }}
+        run: sed -i -E "s|^ARG REX_VERSION=.+|ARG REX_VERSION=$VERSION|" Dockerfile
+      - if: steps.rex.outputs.moved == 'true'
+        uses: https://sarak.sh/actions/changelog/append@v1
+        with:
+          section: Changed
+          note: Rex is `${{ steps.rex.outputs.version }}`.
+
+      - id: release
+        if: steps.base.outputs.moved == 'true' || steps.rex.outputs.moved == 'true'
+        uses: https://sarak.sh/actions/changelog/release@v1
+
+      - name: Commit
+        if: steps.base.outputs.moved == 'true' || steps.rex.outputs.moved == 'true'
+        env:
+          BASE_MOVED: ${{ steps.base.outputs.moved }}
+          BASE_VERSION: ${{ steps.base.outputs.version }}
+          REX_MOVED: ${{ steps.rex.outputs.moved }}
+          REX_VERSION: ${{ steps.rex.outputs.version }}
+          RELEASE: ${{ steps.release.outputs.version }}
+        run: |
+          git diff
+          pins=
+          if [ "$BASE_MOVED" = true ]; then pins="base to $BASE:$BASE_VERSION"; fi
+          if [ "$REX_MOVED" = true ]; then pins="${pins:+$pins, }Rex to $REX_VERSION"; fi
+          git config user.name 'forgejo-actions'
+          git config user.email 'actions@sarak.sh'
+          git commit -qam "kuberex $RELEASE: pin $pins"
+          git push

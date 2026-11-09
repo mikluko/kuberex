@@ -3,10 +3,8 @@ name: release
 # Releases the amd64 and arm64 image and the Helm chart to sarak.sh when the
 # newest CHANGELOG.md entry names a version no tag names yet.
 #
-# On schedule, `pin` first moves Dockerfile's FROM to Debian's newest
-# trixie-YYYYMMDD snapshot and records it in CHANGELOG.md: cut as the next
-# PATCH when [Unreleased] is empty, which this run then releases, or added to
-# [Unreleased] when a release is already pending there.
+# The schedule runs half an hour after the upgrade workflow, so a version it
+# cut is published even where its push starts no run of this one.
 
 on:
   push:
@@ -15,7 +13,7 @@ on:
       - CHANGELOG.md
       - .forgejo/workflows/release.yaml
   schedule:
-    - cron: "0 6 * * *"
+    - cron: "30 6 * * *"
   workflow_dispatch:
 
 # Serialize releases: a new run queues behind the in-progress one instead of
@@ -33,98 +31,18 @@ env:
   REGISTRY: sarak.sh
   IMAGE: sarak.sh/${{ github.repository }}
   CHART_REPOSITORY: oci://sarak.sh/${{ github.repository_owner }}/charts
-  BASE: debian
 
 jobs:
-  pin:
-    if: github.event_name != 'push'
-    runs-on: ubuntu-latest
-    outputs:
-      sha: ${{ steps.commit.outputs.sha }}
-    steps:
-      - uses: https://github.com/actions/checkout@v5
-
-      - name: Resolve newest base snapshot
-        id: base
-        run: |
-          # library/debian on Docker Hub: only exact trixie-YYYYMMDD tags, which
-          # excludes trixie, trixie-slim and trixie-YYYYMMDD-slim.
-          version=$(curl -fsSL 'https://hub.docker.com/v2/repositories/library/debian/tags?page_size=100&name=trixie-' \
-            | jq -r '.results[].name | select(test("^trixie-[0-9]{8}$"))' \
-            | sort | tail -1)
-          if [ -z "$version" ]; then
-            echo "::error::no trixie-YYYYMMDD tag of $BASE found"; exit 1
-          fi
-          current=$(sed -nE "s|^FROM $BASE:([^ ]+).*|\1|p" Dockerfile)
-          echo "version=$version" >>"$GITHUB_OUTPUT"
-          echo "current=$current" >>"$GITHUB_OUTPUT"
-
-      - id: changelog
-        if: steps.base.outputs.version != steps.base.outputs.current
-        uses: https://sarak.sh/actions/changelog@v1
-
-      - if: steps.base.outputs.version != steps.base.outputs.current
-        uses: https://github.com/actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-
-      - name: Record the bump
-        id: record
-        if: steps.base.outputs.version != steps.base.outputs.current
-        env:
-          VERSION: ${{ steps.base.outputs.version }}
-          CURRENT: ${{ steps.changelog.outputs.version }}
-          PENDING: ${{ steps.changelog.outputs.due }}
-        run: |
-          if [ "$PENDING" = true ]; then
-            echo "::error file=CHANGELOG.md::$CURRENT is not released yet; release it before the base moves"
-            exit 1
-          fi
-          sed -i -E "s|^FROM $BASE:[^ ]+|FROM $BASE:$VERSION|" Dockerfile
-          cut=$(go run ./cmd/record-base-bump \
-            -current "$CURRENT" -date "$(date -u +%F)" \
-            -entry "Base image is \`$BASE:$VERSION\`.")
-          echo "cut=$cut" >>"$GITHUB_OUTPUT"
-          git diff
-
-      - name: Commit
-        id: commit
-        env:
-          VERSION: ${{ steps.base.outputs.version }}
-          CUT: ${{ steps.record.outputs.cut }}
-        run: |
-          if git diff --quiet; then
-            echo "sha=$GITHUB_SHA" >>"$GITHUB_OUTPUT"
-            exit 0
-          fi
-          git config user.name 'forgejo-actions'
-          git config user.email 'actions@sarak.sh'
-          git commit -qam "Pin base to $BASE:$VERSION"
-          git push
-          echo "sha=$(git rev-parse HEAD)" >>"$GITHUB_OUTPUT"
-          if [ -z "$CUT" ]; then
-            echo "::notice::$BASE:$VERSION recorded under [Unreleased]; it ships with the pending release"
-          fi
-
-  # Forgejo skips a job whose need was skipped unless its condition calls
-  # always(); pin is skipped on push.
   plan:
-    needs: pin
-    if: ${{ always() && needs.pin.result != 'failure' && needs.pin.result != 'cancelled' }}
     runs-on: ubuntu-latest
     outputs:
-      sha: ${{ steps.ref.outputs.sha }}
+      sha: ${{ github.sha }}
       due: ${{ steps.changelog.outputs.due }}
       version: ${{ steps.changelog.outputs.version }}
       notes: ${{ steps.changelog.outputs.notes }}
     steps:
-      - id: ref
-        env:
-          PINNED: ${{ needs.pin.outputs.sha }}
-        run: echo "sha=${PINNED:-$GITHUB_SHA}" >>"$GITHUB_OUTPUT"
       - uses: https://github.com/actions/checkout@v5
         with:
-          ref: ${{ steps.ref.outputs.sha }}
           fetch-depth: 0
           persist-credentials: false
       - id: changelog

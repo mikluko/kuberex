@@ -1,1 +1,6 @@
+.*
+!.gitignore
+!.dockerignore
+!.forgejo
+!.github
 rex-apt.conf
