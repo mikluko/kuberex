@@ -43,27 +43,21 @@ jobs:
 
       # apt in the new base reads the index through the image's own source and
       # keyring, so the signature is checked and versions compare as dpkg
-      # compares them. A version is taken only once both architectures have it.
+      # compares them. The runner has no Docker daemon, only the remote
+      # buildx builder the image job uses. A version is taken only once both
+      # architectures have it.
       - name: Resolve newest Rex
         id: rex
         env:
           DEBIAN: ${{ steps.base.outputs.version }}
         run: |
-          candidates=$(docker run --rm -v "$PWD/apt:/src:ro" "$BASE:$DEBIAN" sh -ec '
-            apt-get update -qq
-            DEBIAN_FRONTEND=noninteractive apt-get install -qq -y --no-install-recommends ca-certificates >/dev/null
-            rm -f /etc/apt/sources.list.d/*
-            cp -r /src/keyrings /etc/apt/
-            cp /src/sources.list.d/rex.sources /etc/apt/sources.list.d/
-            for arch in amd64 arm64; do
-              [ "$arch" = "$(dpkg --print-architecture)" ] || dpkg --add-architecture "$arch"
-            done
-            apt-get update -qq
-            for arch in amd64 arm64; do
-              apt-cache policy "rex:$arch" | sed -n "s/^ *Candidate: //p"
-            done')
-          amd64=$(echo "$candidates" | sed -n 1p)
-          arm64=$(echo "$candidates" | sed -n 2p)
+          docker buildx build --no-cache --platform linux/amd64 \
+            --build-arg "BASE=$BASE:$DEBIAN" \
+            --file .forgejo/rex-candidates.Dockerfile \
+            --output "type=local,dest=$RUNNER_TEMP/rex" \
+            apt
+          amd64=$(sed -n 1p "$RUNNER_TEMP/rex/candidates")
+          arm64=$(sed -n 2p "$RUNNER_TEMP/rex/candidates")
           version=
           if [ -z "$amd64" ] || [ "$amd64" = "(none)" ] || [ -z "$arm64" ] || [ "$arm64" = "(none)" ]; then
             echo "::error::no rex package for amd64 and arm64 in the channel apt/sources.list.d/rex.sources names"
