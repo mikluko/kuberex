@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-11-09
+
+### Added
+
+- Restart: an account in chart value `restartAccounts`, passed as
+  `KUBEREX_RESTART_ACCOUNTS`, runs `kuberex-control restart` to restart the
+  server container. Every account's Rex server stops cleanly, so its sessions
+  come back, and the container exits with code 0 for Kubernetes to start it
+  again with its services.
+
 ## [0.18.0] - 2026-11-09
 
 ### Changed

@@ -8,8 +8,9 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd/ cmd/
+COPY internal/ internal/
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -trimpath -o /out/ ./cmd/kuberex-accounts ./cmd/kuberex-claude ./cmd/kuberex-services
+    go build -trimpath -o /out/ ./cmd/kuberex-accounts ./cmd/kuberex-claude ./cmd/kuberex-control ./cmd/kuberex-services
 
 FROM debian:trixie-20261104
 
@@ -45,7 +46,7 @@ RUN --mount=type=cache,target=/var/lib/apt,sharing=locked \
         "rex=$REX_VERSION" "claude-code=$CLAUDE_CODE_VERSION"
 
 COPY rootfs/ /
-COPY --from=build /out/kuberex-accounts /out/kuberex-claude /out/kuberex-services /usr/local/bin/
+COPY --from=build /out/kuberex-accounts /out/kuberex-claude /out/kuberex-control /out/kuberex-services /usr/local/bin/
 RUN echo '. /etc/zsh/kuberex-claude.zsh' >>/etc/zsh/zshrc
 
 # rex commands look for the login server's sockets in the runtime dir. Go

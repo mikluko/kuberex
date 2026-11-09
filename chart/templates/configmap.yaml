@@ -14,6 +14,11 @@
 {{- fail (printf "services[%d]: account %q is not named in accounts.accounts" $i $s.account) }}
 {{- end }}
 {{- end }}
+{{- range .Values.restartAccounts }}
+{{- if or (eq . "*") (not (hasKey $.Values.accounts.accounts .)) }}
+{{- fail (printf "restartAccounts: account %q is not named in accounts.accounts" .) }}
+{{- end }}
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

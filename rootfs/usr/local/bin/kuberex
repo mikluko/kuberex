@@ -15,6 +15,9 @@
 #                              account can read them
 #   KUBEREX_SERVICES           optional services file for kuberex-services,
 #                              whose services start beside the login server
+#   KUBEREX_RESTART_ACCOUNTS   optional accounts, separated by spaces, that
+#                              may restart the container with
+#                              kuberex-control restart
 #
 # Every account the accounts file names, but root and "*", is created at start
 # with zsh and a home in /home/<name>.
@@ -131,6 +134,12 @@ create_tmpdirs "$REX_LOGIN_SERVER_ACCOUNTS"
 # reaps kuberex-services and the account servers it starts.
 if [ -n "${KUBEREX_SERVICES:-}" ]; then
   (kuberex-services "$KUBEREX_SERVICES" &)
+fi
+# The exec below keeps this process's ID, so kuberex-control signals the login
+# server by it.
+if [ -n "${KUBEREX_RESTART_ACCOUNTS:-}" ]; then
+  install -d -o 0 -g 0 -m 0755 /run/kuberex
+  (kuberex-control serve --login-server-pid $$ --accounts "$KUBEREX_RESTART_ACCOUNTS" &)
 fi
 
 exec rex login-server \

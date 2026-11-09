@@ -37,6 +37,7 @@ It reads:
 | `KUBEREX_APT`               | directory of apt additions; none when unset                                       |
 | `KUBEREX_SECRETS`           | directory of [account Secrets](#account-secrets); none when unset                 |
 | `KUBEREX_SERVICES`          | [services file](#services); none when unset                                       |
+| `KUBEREX_RESTART_ACCOUNTS`  | accounts, separated by spaces, that may [restart the container](#restart); none when unset |
 
 At each start, in this order, it:
 
@@ -46,6 +47,7 @@ At each start, in this order, it:
 1. opens `/run/rex` to every account for traversal
 1. makes `/tmp` owned by root with mode `1777`, and `/tmp/user/<uid>` with mode `0700` for every account it created
 1. starts the services in `$KUBEREX_SERVICES`, beside the next step
+1. starts `kuberex-control serve` for the accounts in `$KUBEREX_RESTART_ACCOUNTS`, beside the next step
 1. starts the login server with its runtime root in `/run/rex`
 
 Each account's server runs in a PAM session, where `pam_tmpdir` sets `TMPDIR` and `TMP` to `/tmp/user/<uid>`, a directory only the account can open.
@@ -74,6 +76,27 @@ The services file is a JSON array of services, each with these fields:
 `kuberex-services` starts each account's server the way the login server does, which then serves connections to that account from the same server.
 A session that already carries the label, which the server restored from before the restart with a bare shell in it, is replaced by a new one running the command.
 A command that exits is not restarted, and its terminal stays open with its last output.
+
+### Restart
+
+An account in `$KUBEREX_RESTART_ACCOUNTS` restarts the server container with:
+
+```sh
+kuberex-control restart
+```
+
+It exits 0 once the restart is accepted and prints `kuberex-control: restarting the container`.
+It exits 1 when the account is not allowed, the container is already restarting, or restart is not enabled.
+About a second after accepting, `kuberex-control serve`, running as root:
+
+1. stops every account's Rex server with `rex server stop`, so the server records a clean shutdown and restores its sessions at the next start; each terminal's processes, the caller included, get a hangup
+1. syncs the filesystems
+1. sends `SIGTERM` to the login server, which exits 0 and ends the container with code 0
+
+Kubernetes then starts the container again, which runs the [entrypoint](#entrypoint) from the beginning: the services start again, and the volumes, the pod and its `tailscaled` stay as they were.
+Kubernetes delays a container that restarts again within ten minutes, from 10 seconds up to 5 minutes, whatever its exit code.
+
+`kuberex-control serve` listens on `/run/kuberex/control.sock` and admits a request by the uid of the process making it.
 
 ### Claude Code Sessions
 
@@ -120,6 +143,7 @@ The pod runs `tailscaled` from `tailscale/tailscale` as a sidecar in userspace n
 | `apt.packages`                     | `apt-get install` arguments                                                |
 | `accountSecrets`                   | account to a list of Secret names in the release's namespace, each mounted at `/etc/kuberex/secrets/<account>/<secret>` as an [account Secret](#account-secrets); each account must be named in `accounts` |
 | `services`                         | the [services](#services), as a list; each `account` must be named in `accounts` |
+| `restartAccounts`                  | accounts that may [restart the container](#restart); each must be named in `accounts` |
 | `persistence.size`                 | size of the PersistentVolumeClaim `state-<release>-0` the StatefulSet creates for `/var/lib/rex`; default `10Gi` |
 | `persistence.storageClassName`     | storage class of that claim; default the cluster's                         |
 | `stateVolume`                      | volume source of `/var/lib/rex` in place of that claim, rendered as given, such as `hostPath` |
