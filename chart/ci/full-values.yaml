@@ -51,7 +51,24 @@ accountContainers:
         readOnly: true
   - name: watch
     account: alice
-    command: ["jmap-watch"]
+    command: ["jmap-watch", "-health-addr", ":8081"]
+    startupProbe:
+      httpGet:
+        path: /healthz
+        port: 8081
+      periodSeconds: 10
+      failureThreshold: 60
+    livenessProbe:
+      httpGet:
+        path: /healthz
+        port: 8081
+      periodSeconds: 30
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readinessProbe:
+      httpGet:
+        path: /healthz
+        port: 8081
 shareProcessNamespace: true
 apt:
   sources:
