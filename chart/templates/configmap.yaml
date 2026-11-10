@@ -19,6 +19,22 @@
 {{- fail (printf "shutdownAccounts: account %q is not named in accounts.accounts" .) }}
 {{- end }}
 {{- end }}
+{{- range .Values.keepServers }}
+{{- if or (eq . "*") (not (hasKey $.Values.accounts.accounts .)) }}
+{{- fail (printf "keepServers: account %q is not named in accounts.accounts" .) }}
+{{- end }}
+{{- end }}
+{{- range $i, $c := .Values.accountContainers }}
+{{- if or (not $c.name) (not $c.account) (not $c.command) }}
+{{- fail (printf "accountContainers[%d] needs name, account and command" $i) }}
+{{- end }}
+{{- if or (eq $c.account "*") (not (hasKey $.Values.accounts.accounts $c.account)) }}
+{{- fail (printf "accountContainers[%d]: account %q is not named in accounts.accounts" $i $c.account) }}
+{{- end }}
+{{- if has $c.name (list "rex" "tailscale") }}
+{{- fail (printf "accountContainers[%d]: name %q is the chart's own container" $i $c.name) }}
+{{- end }}
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

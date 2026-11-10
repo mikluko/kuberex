@@ -17,6 +17,9 @@ func TestRunUsage(t *testing.T) {
 		{"accounts without a file", []string{"accounts"}, 2},
 		{"claude without a verb", []string{"claude"}, 2},
 		{"services without a file", []string{"services"}, 2},
+		{"keep-servers without accounts", []string{"keep-servers"}, 2},
+		{"run without an account", []string{"run", "--", "true"}, 2},
+		{"run without a command", []string{"run", "--account", "city"}, 2},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

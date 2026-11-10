@@ -3,7 +3,6 @@ package control
 import (
 	"bytes"
 	"fmt"
-	"net"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -33,12 +32,9 @@ func (p pod) servers() ([]string, error) {
 	}
 	var names []string
 	for _, e := range entries {
-		c, err := net.Dial("unix", filepath.Join(account.RuntimeDir(p.runtimeRoot, e.Name()), "server.sock"))
-		if err != nil {
-			continue
+		if account.ServerReady(p.runtimeRoot, e.Name()) {
+			names = append(names, e.Name())
 		}
-		_ = c.Close()
-		names = append(names, e.Name())
 	}
 	return names, nil
 }

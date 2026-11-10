@@ -27,6 +27,9 @@ spec:
       serviceAccountName: {{ include "kuberex.serviceAccountName" . }}
       automountServiceAccountToken: {{ .Values.serviceAccount.automountToken }}
       enableServiceLinks: false
+      {{- if .Values.shareProcessNamespace }}
+      shareProcessNamespace: true
+      {{- end }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -118,6 +121,10 @@ spec:
             - name: KUBEREX_SHUTDOWN_ACCOUNTS
               value: {{ join " " . | quote }}
             {{- end }}
+            {{- with .Values.keepServers }}
+            - name: KUBEREX_KEEP_SERVERS
+              value: {{ join " " . | quote }}
+            {{- end }}
             {{- range $k, $v := .Values.env }}
             - name: {{ $k }}
               value: {{ $v | toString | quote }}
@@ -163,6 +170,8 @@ spec:
             {{- end }}
             - name: run
               mountPath: /run/rex
+            - name: kuberex
+              mountPath: /run/kuberex
             - name: tmp
               mountPath: /tmp
             - name: tailscale
@@ -174,6 +183,61 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+        {{- range .Values.accountContainers }}
+        {{- $image := mergeOverwrite (deepCopy $.Values.image) (.image | default dict) }}
+        - name: {{ .name }}
+          image: {{ $image.repository }}:{{ $image.tag | default $.Chart.AppVersion }}
+          imagePullPolicy: {{ $image.pullPolicy }}
+          command:
+            - /usr/bin/dumb-init
+            - --
+            - /usr/local/bin/kuberexctl
+            - run
+            - {{ printf "--account=%s" .account | quote }}
+            {{- with .cwd }}
+            - {{ printf "--cwd=%s" . | quote }}
+            {{- end }}
+            {{- if has .account $.Values.keepServers }}
+            - --wait-server
+            {{- end }}
+            - --
+            {{- toYaml .command | nindent 12 }}
+          {{- with mergeOverwrite (deepCopy $.Values.env) (.env | default dict) }}
+          env:
+            {{- range $k, $v := . }}
+            - name: {{ $k }}
+              value: {{ $v | toString | quote }}
+            {{- end }}
+          {{- end }}
+          # Root only to create the account, whose shadow files useradd chowns,
+          # and take its uid before running the command.
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: false
+            runAsUser: 0
+            runAsGroup: 0
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN, SETGID, SETUID]
+          volumeMounts:
+            - name: state
+              mountPath: /home
+              subPath: home
+            - name: run
+              mountPath: /run/rex
+            - name: kuberex
+              mountPath: /run/kuberex
+            - name: tmp
+              mountPath: /tmp
+            {{- with .volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
       volumes:
         {{- with .Values.stateVolume }}
         - name: state
@@ -181,6 +245,10 @@ spec:
         {{- end }}
         - name: run
           emptyDir: {}
+        # Account Secrets' copies among them, so kept off the node's disk.
+        - name: kuberex
+          emptyDir:
+            medium: Memory
         - name: config
           configMap:
             name: {{ .Release.Name }}

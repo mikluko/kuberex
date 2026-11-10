@@ -30,6 +30,29 @@ services:
     cwd: /home/bob/city
     command: ["gc", "supervisor", "run"]
 shutdownAccounts: [bob]
+keepServers: [bob]
+accountContainers:
+  - name: supervisor
+    account: bob
+    cwd: /home/bob/city
+    command: ["gc", "supervisor", "run"]
+    image:
+      repository: sarak.sh/example/city
+      tag: "1.0.0"
+    env:
+      GC_LOG: debug
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    volumeMounts:
+      - name: example
+        mountPath: /etc/example
+        readOnly: true
+  - name: watch
+    account: alice
+    command: ["jmap-watch"]
+shareProcessNamespace: true
 apt:
   sources:
     example: |

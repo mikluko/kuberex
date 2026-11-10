@@ -18,9 +18,14 @@
 #   KUBEREX_SHUTDOWN_ACCOUNTS  optional accounts, separated by spaces, that
 #                              may shut the container down with
 #                              kuberexctl shutdown
+#   KUBEREX_KEEP_SERVERS       optional accounts, separated by spaces, whose
+#                              Rex servers kuberexctl keep-servers keeps
+#                              running without a session
 #
 # Every account the accounts file names, but root and "*", is created at start
-# with zsh and a home in /home/<name>.
+# with zsh and a home in /home/<name>. /run/kuberex/ready marks the accounts,
+# their Secrets and their temporary directories set up, for kuberexctl run in
+# the account containers.
 set -eu
 
 # install_packages adds the sources and keyrings in directory $1 to apt and
@@ -76,10 +81,19 @@ create_accounts() {
   done
 }
 
+# prepare_run_kuberex makes /run/kuberex root's. It may be a volume shared
+# with the account containers, which outlives this container: the marks of
+# the container's last run are removed.
+prepare_run_kuberex() {
+  mkdir -p /run/kuberex
+  chown 0:0 /run/kuberex
+  chmod 0755 /run/kuberex
+  rm -f /run/kuberex/ready /run/kuberex/shutdown
+}
+
 # install_secrets copies the keys of each Secret at $1/<account>/<secret> to
 # /run/kuberex/secrets/<account>/<secret>, owned by the account with mode 0400
-# in a directory only it can open. The root filesystem is the container's, so
-# the copies go with the container.
+# in a directory only it can open.
 install_secrets() {
   install -d -o 0 -g 0 -m 0711 /run/kuberex/secrets
   for src in "$1"/*/*/; do
@@ -120,6 +134,7 @@ if [ -n "${KUBEREX_APT:-}" ]; then
   install_packages "$KUBEREX_APT"
 fi
 create_accounts "$REX_LOGIN_SERVER_ACCOUNTS"
+prepare_run_kuberex
 if [ -n "${KUBEREX_SECRETS:-}" ]; then
   install_secrets "$KUBEREX_SECRETS"
 fi
@@ -130,6 +145,18 @@ chmod 0755 /run/rex
 chown 0:0 /tmp
 chmod 01777 /tmp
 create_tmpdirs "$REX_LOGIN_SERVER_ACCOUNTS"
+: >/run/kuberex/ready
+# Kept servers start first, so that neither the services nor the login server
+# start one that stops when empty. The keeper is a child of this shell, which
+# stops it before stopping the servers.
+keeper=
+if [ -n "${KUBEREX_KEEP_SERVERS:-}" ]; then
+  # shellcheck disable=SC2086 # one account per word
+  kuberexctl keep-servers --once $KUBEREX_KEEP_SERVERS || true
+  # shellcheck disable=SC2086
+  kuberexctl keep-servers $KUBEREX_KEEP_SERVERS &
+  keeper=$!
+fi
 # In a subshell that exits at once, so dumb-init rather than the login server
 # reaps kuberexctl services and the account servers it starts.
 if [ -n "${KUBEREX_SERVICES:-}" ]; then
@@ -149,7 +176,6 @@ trap 'kill -INT "$login_server" 2>/dev/null' INT
 trap 'kill -HUP "$login_server" 2>/dev/null' HUP
 
 if [ -n "${KUBEREX_SHUTDOWN_ACCOUNTS:-}" ]; then
-  install -d -o 0 -g 0 -m 0755 /run/kuberex
   (kuberexctl serve --login-server-pid "$login_server" --accounts "$KUBEREX_SHUTDOWN_ACCOUNTS" &)
 fi
 
@@ -166,7 +192,14 @@ done
 echo "kuberex: the login server exited with status $status" >&2
 
 # The account servers outlive the login server, which no longer starts new
-# ones; stopping them lets each record a clean shutdown.
+# ones; stopping them lets each record a clean shutdown. The keeper goes
+# first, or it would start them again.
+if [ -n "$keeper" ]; then
+  kill -TERM "$keeper" 2>/dev/null || true
+  while kill -0 "$keeper" 2>/dev/null; do
+    wait "$keeper" || true
+  done
+fi
 kuberexctl stop-servers || true
 if [ -e /run/kuberex/shutdown ]; then
   exit 0

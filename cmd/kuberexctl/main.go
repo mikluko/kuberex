@@ -7,6 +7,9 @@
 //	                                         accept shutdown requests, as root
 //	kuberexctl shutdown                      shut the server container down
 //	kuberexctl stop-servers                  stop every account's Rex server, as root
+//	kuberexctl keep-servers ACCOUNT...       keep accounts' Rex servers running, as root
+//	kuberexctl run --account NAME -- COMMAND run a command as an account from an
+//	                                         account container, as root
 package main
 
 import (
@@ -16,10 +19,12 @@ import (
 	"sarak.sh/mikluko/kuberex/internal/accountsfile"
 	"sarak.sh/mikluko/kuberex/internal/claude"
 	"sarak.sh/mikluko/kuberex/internal/control"
+	"sarak.sh/mikluko/kuberex/internal/keep"
+	"sarak.sh/mikluko/kuberex/internal/runas"
 	"sarak.sh/mikluko/kuberex/internal/services"
 )
 
-const usage = "usage: kuberexctl accounts|services|claude|serve|shutdown|stop-servers [ARGS]"
+const usage = "usage: kuberexctl accounts|services|claude|serve|shutdown|stop-servers|keep-servers|run [ARGS]"
 
 func main() { os.Exit(run(os.Args[1:])) }
 
@@ -43,6 +48,10 @@ func run(args []string) int {
 		return control.ShutdownMain(args[1:])
 	case "stop-servers":
 		return control.StopServersMain(args[1:])
+	case "keep-servers":
+		return keep.Main(args[1:])
+	case "run":
+		return runas.Main(args[1:])
 	}
 	fmt.Fprintln(os.Stderr, usage)
 	return 2

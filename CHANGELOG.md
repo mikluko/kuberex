@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-11-10
+
+### Added
+
+- Account containers: chart value `accountContainers` adds containers to the
+  pod, each running a command as an account through `kuberexctl run`, with
+  the server container's `/home`, `/run/rex`, `/run/kuberex` and `/tmp`, so
+  the command reaches the account's Rex server and its account Secrets at
+  the same paths.
+- Kept servers: chart value `keepServers`, passed as `KUBEREX_KEEP_SERVERS`,
+  keeps the named accounts' Rex servers running without a session, through
+  `kuberexctl keep-servers`.
+- Chart value `shareProcessNamespace`, one process namespace for the pod's
+  containers.
+
+### Changed
+
+- The chart mounts `/run/kuberex`, which holds the account Secrets' copies,
+  from an in-memory volume shared with the account containers.
+
 ## [0.23.1] - 2026-11-10
 
 ### Fixed
