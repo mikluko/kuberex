@@ -16,7 +16,7 @@ The image installs these packages:
 | terminal tools | Debian: `zsh`, `git`, `vim`, `htop`, `mc`, `ripgrep`, `fd-find`, `fzf`, `bat`, `jq` and others | the Debian snapshot the image is built on |
 
 A new Rex or Claude Code version reaches the pod as a new image release.
-Every day, the upgrade workflow moves the Rex and Claude Code pins and the Debian snapshot to the newest of each, and when any moves, releases a new version carrying the move and anything else under `[Unreleased]` in [`CHANGELOG.md`](../CHANGELOG.md).
+Every day, the renovate workflow moves the Rex and Claude Code pins and the Debian snapshot to the newest of each, and when any moves, releases a new version carrying the move and anything else under `[Unreleased]` in [`CHANGELOG.md`](../CHANGELOG.md).
 The full package list is in the [`Dockerfile`](../Dockerfile).
 
 Claude Code neither checks for updates nor updates itself, and sends no telemetry, error reports or other nonessential traffic: `/etc/claude-code/managed-settings.d/kuberex.json` sets `DISABLE_UPDATES`, `DISABLE_AUTOUPDATER`, `DISABLE_TELEMETRY`, `DISABLE_ERROR_REPORTING` and `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` for every account.

@@ -8,7 +8,7 @@ Nothing on a pull request builds the image or runs the entrypoint.
 
 - `main` publishes a release whenever the newest heading in `CHANGELOG.md` names a version no tag has, on push and daily at 06:30 UTC.
   A pull request's entry therefore goes under `## [Unreleased]`.
-  A version heading belongs only in a pull request whose stated purpose is a release; the upgrade workflow cuts one by itself when it moves a pin.
+  A version heading belongs only in a pull request whose stated purpose is a release; the renovate workflow cuts one by itself when it moves a pin.
 - Every change to what the image or the chart does carries an entry: `Dockerfile`, `rootfs/`, `cmd/`, `internal/`, `chart/`.
   A change to CI or to docs alone carries none.
 - Entries use the Keep a Changelog 2.0.0 types and describe the effect for someone running the image or the chart.
@@ -46,7 +46,7 @@ A pull request that widens any of this says why in its description.
 
 ## Pins
 
-The upgrade workflow moves `FROM`, `REX_VERSION` and `CLAUDE_CODE_VERSION` in the `Dockerfile` daily.
+The renovate workflow moves `FROM`, `REX_VERSION` and `CLAUDE_CODE_VERSION` in the `Dockerfile` daily.
 A pull request that moves one by hand says why.
 
 ## Downstream

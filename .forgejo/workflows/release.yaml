@@ -3,7 +3,7 @@ name: release
 # Releases the amd64 and arm64 image and the Helm chart to sarak.sh when the
 # newest CHANGELOG.md entry names a version no tag names yet.
 #
-# The schedule runs half an hour after the upgrade workflow, so a version it
+# The schedule runs half an hour after the renovate workflow, so a version it
 # cut is published even where its push starts no run of this one.
 
 on:

@@ -1,4 +1,4 @@
-name: upgrade
+name: renovate
 
 # Moves Dockerfile's FROM to Debian's newest trixie-YYYYMMDD snapshot, and
 # REX_VERSION and CLAUDE_CODE_VERSION to the newest Rex and Claude Code in the
@@ -18,6 +18,12 @@ concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: false
 
+# main admits pushes from the owner alone, so the push trades an OIDC token
+# for the owner's Authorized Integration whose audience is the account-level
+# vars.RENOVATE_AUDIENCE. It admits this file by its workflow_ref on main, so
+# the file keeps its name and path. A push made with it starts release.yaml.
+enable-openid-connect: true
+
 env:
   BASE: debian
 
@@ -26,6 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: https://github.com/actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Resolve newest base snapshot
         id: base
@@ -134,4 +142,17 @@ jobs:
           git config user.name 'forgejo-actions'
           git config user.email 'actions@sarak.sh'
           git commit -qam "kuberex $RELEASE: pin $pins"
-          git push
+
+      # Runs when nothing moved too, as a dry run, so a token the integration
+      # no longer grants fails the day it stops, not on the next move.
+      - name: Push
+        env:
+          MOVED: ${{ steps.base.outputs.moved == 'true' || steps.pkg.outputs.rex_moved == 'true' || steps.pkg.outputs.claude_moved == 'true' }}
+          AUDIENCE: ${{ vars.RENOVATE_AUDIENCE }}
+        run: |
+          jwt=$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUDIENCE" | jq -r .value)
+          echo "::add-mask::$jwt"
+          dry=--dry-run
+          if [ "$MOVED" = true ]; then dry=; fi
+          git -c http.extraHeader="Authorization: Bearer $jwt" push $dry origin "HEAD:$GITHUB_REF"
