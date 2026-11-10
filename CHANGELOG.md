@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.1] - 2026-11-10
+
+### Fixed
+
+- A service whose restored session takes longer than ten seconds to kill
+  starts once that session is gone, within two minutes. It used to be
+  skipped with "session.destroy request timed out".
+
 ## [0.23.0] - 2026-11-10
 
 ### Changed

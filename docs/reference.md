@@ -77,6 +77,7 @@ The services file is a JSON array of services, each with these fields:
 
 `kuberexctl services` starts each account's server the way the login server does, which then serves connections to that account from the same server.
 A session that already carries the label, which the server restored from before the restart with a bare shell in it, is replaced by a new one running the command.
+The new session starts once the old one is gone, which may take up to two minutes for a session with many processes; a service whose old session outlives that is not started.
 A command that exits is not restarted, and its terminal stays open with its last output.
 
 ### Shutdown
