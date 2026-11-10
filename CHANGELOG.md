@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Rex is `0.0.1794283804-gc3af96`.
 
-## [0.22.0] - 2026-11-09
+## [0.22.0] - 2026-11-10
 
 ### Added
 
