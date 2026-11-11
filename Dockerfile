@@ -16,7 +16,7 @@ FROM debian:trixie-20261104
 
 # Rex and Claude Code versions the image ships. Rex's snapshot index keeps
 # only its newest builds, so a stale REX_VERSION stops the image building.
-ARG REX_VERSION=0.0.1794283804-gc3af96
+ARG REX_VERSION=0.0.1794371922-g89ffd0
 ARG CLAUDE_CODE_VERSION=2.1.311-1
 
 ARG DEBIAN_FRONTEND=noninteractive
