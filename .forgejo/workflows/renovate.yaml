@@ -92,7 +92,7 @@ jobs:
           VERSION: ${{ steps.base.outputs.version }}
         run: sed -i -E "s|^FROM $BASE:[^ ]+|FROM $BASE:$VERSION|" Dockerfile
       - if: steps.base.outputs.moved == 'true'
-        uses: https://sarak.sh/actions/changelog/append@v1
+        uses: https://sarak.sh/mikluko/changelog/append@v1
         with:
           section: Changed
           note: Base image is `${{ env.BASE }}:${{ steps.base.outputs.version }}`.
@@ -103,7 +103,7 @@ jobs:
           VERSION: ${{ steps.pkg.outputs.rex_version }}
         run: sed -i -E "s|^ARG REX_VERSION=.+|ARG REX_VERSION=$VERSION|" Dockerfile
       - if: steps.pkg.outputs.rex_moved == 'true'
-        uses: https://sarak.sh/actions/changelog/append@v1
+        uses: https://sarak.sh/mikluko/changelog/append@v1
         with:
           section: Changed
           note: Rex is `${{ steps.pkg.outputs.rex_version }}`.
@@ -114,14 +114,14 @@ jobs:
           VERSION: ${{ steps.pkg.outputs.claude_version }}
         run: sed -i -E "s|^ARG CLAUDE_CODE_VERSION=.+|ARG CLAUDE_CODE_VERSION=$VERSION|" Dockerfile
       - if: steps.pkg.outputs.claude_moved == 'true'
-        uses: https://sarak.sh/actions/changelog/append@v1
+        uses: https://sarak.sh/mikluko/changelog/append@v1
         with:
           section: Changed
           note: Claude Code is `${{ steps.pkg.outputs.claude_version }}`.
 
       - id: release
         if: steps.base.outputs.moved == 'true' || steps.pkg.outputs.rex_moved == 'true' || steps.pkg.outputs.claude_moved == 'true'
-        uses: https://sarak.sh/actions/changelog/release@v1
+        uses: https://sarak.sh/mikluko/changelog/release@v1
 
       - name: Commit
         if: steps.base.outputs.moved == 'true' || steps.pkg.outputs.rex_moved == 'true' || steps.pkg.outputs.claude_moved == 'true'

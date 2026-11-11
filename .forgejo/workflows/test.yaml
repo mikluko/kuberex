@@ -69,6 +69,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       # 0.22.0 is dated a day before its tag, and a released entry may not change.
-      - uses: https://sarak.sh/actions/changelog@v1
+      - uses: https://sarak.sh/mikluko/changelog@v1
         with:
           warn: date-mismatch

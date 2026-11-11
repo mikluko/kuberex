@@ -49,7 +49,7 @@ jobs:
       # date-future reads today in UTC; v0.22.0's commit, made at 00:00+01:00,
       # can satisfy only one of them.
       - id: changelog
-        uses: https://sarak.sh/actions/changelog@v1
+        uses: https://sarak.sh/mikluko/changelog@v1
         with:
           warn: date-mismatch
 
