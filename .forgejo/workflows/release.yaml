@@ -48,9 +48,18 @@ jobs:
       # date-mismatch reads a tag's day in its commit's own UTC offset, while
       # date-future reads today in UTC; v0.22.0's commit, made at 00:00+01:00,
       # can satisfy only one of them.
+      #
+      # pending-date-mismatch, which 2.1.0 adds, stays at error. While the
+      # newest untagged entry is not dated the day a tag cut on this commit
+      # would carry, due is false, so the push and the schedule alike cut no
+      # tag on a wrong date. A warning would hold due back too, but it would
+      # leave the run green, and a release that is not published, daily on
+      # the schedule, should show red until its entry is repaired.
+      # fragments are off: this repository keeps its notes in CHANGELOG.md.
       - id: changelog
-        uses: https://sarak.sh/mikluko/changelog@v1
+        uses: https://sarak.sh/mikluko/changelog/actions/validate@v2
         with:
+          fragments: ""
           warn: date-mismatch
 
   image:
