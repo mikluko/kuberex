@@ -1,6 +1,7 @@
 name: renovate
 
-# Moves Dockerfile's FROM to Debian's newest trixie-YYYYMMDD snapshot, and
+# Moves Dockerfile's FROM to Debian's newest trixie-YYYYMMDD snapshot,
+# GO_VERSION to the newest Go that Docker Hub's golang image carries, and
 # REX_VERSION and CLAUDE_CODE_VERSION to the newest Rex and Claude Code in the
 # channels apt/sources.list.d names, notes each move under Changed in
 # CHANGELOG.md's [Unreleased], turns [Unreleased] into the version the
@@ -47,6 +48,25 @@ jobs:
             echo "::error::no trixie-YYYYMMDD tag of $BASE found"; exit 1
           fi
           current=$(sed -nE "s|^FROM $BASE:([^ ]+).*|\1|p" Dockerfile)
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+          echo "moved=$([ "$version" != "$current" ] && echo true || echo false)" >>"$GITHUB_OUTPUT"
+
+      - name: Resolve newest Go
+        id: go
+        run: |
+          # library/golang on Docker Hub: only exact X.Y.Z-trixie tags, which
+          # excludes release candidates and the moving X.Y-trixie and trixie
+          # tags. A version is taken only once both architectures have it.
+          version=$(curl -fsSL 'https://hub.docker.com/v2/repositories/library/golang/tags?page_size=100&name=-trixie' \
+            | jq -r '.results[]
+                | select(.name | test("^[0-9]+\\.[0-9]+\\.[0-9]+-trixie$"))
+                | select(any(.images[]; .architecture == "amd64") and any(.images[]; .architecture == "arm64"))
+                | .name | rtrimstr("-trixie")' \
+            | sort -V | tail -1)
+          if [ -z "$version" ]; then
+            echo "::error::no X.Y.Z-trixie tag of golang for amd64 and arm64 found"; exit 1
+          fi
+          current=$(sed -nE "s|^ARG GO_VERSION=(.+)|\1|p" Dockerfile)
           echo "version=$version" >>"$GITHUB_OUTPUT"
           echo "moved=$([ "$version" != "$current" ] && echo true || echo false)" >>"$GITHUB_OUTPUT"
 
@@ -97,6 +117,17 @@ jobs:
           section: Changed
           note: Base image is `${{ env.BASE }}:${{ steps.base.outputs.version }}`.
 
+      - name: Pin Go
+        if: steps.go.outputs.moved == 'true'
+        env:
+          VERSION: ${{ steps.go.outputs.version }}
+        run: sed -i -E "s|^ARG GO_VERSION=.+|ARG GO_VERSION=$VERSION|" Dockerfile
+      - if: steps.go.outputs.moved == 'true'
+        uses: https://sarak.sh/mikluko/changelog/append@v1
+        with:
+          section: Changed
+          note: Go is `${{ steps.go.outputs.version }}`.
+
       - name: Pin Rex
         if: steps.pkg.outputs.rex_moved == 'true'
         env:
@@ -120,14 +151,16 @@ jobs:
           note: Claude Code is `${{ steps.pkg.outputs.claude_version }}`.
 
       - id: release
-        if: steps.base.outputs.moved == 'true' || steps.pkg.outputs.rex_moved == 'true' || steps.pkg.outputs.claude_moved == 'true'
+        if: steps.base.outputs.moved == 'true' || steps.go.outputs.moved == 'true' || steps.pkg.outputs.rex_moved == 'true' || steps.pkg.outputs.claude_moved == 'true'
         uses: https://sarak.sh/mikluko/changelog/release@v1
 
       - name: Commit
-        if: steps.base.outputs.moved == 'true' || steps.pkg.outputs.rex_moved == 'true' || steps.pkg.outputs.claude_moved == 'true'
+        if: steps.base.outputs.moved == 'true' || steps.go.outputs.moved == 'true' || steps.pkg.outputs.rex_moved == 'true' || steps.pkg.outputs.claude_moved == 'true'
         env:
           BASE_MOVED: ${{ steps.base.outputs.moved }}
           BASE_VERSION: ${{ steps.base.outputs.version }}
+          GO_MOVED: ${{ steps.go.outputs.moved }}
+          GO_VERSION: ${{ steps.go.outputs.version }}
           REX_MOVED: ${{ steps.pkg.outputs.rex_moved }}
           REX_VERSION: ${{ steps.pkg.outputs.rex_version }}
           CLAUDE_MOVED: ${{ steps.pkg.outputs.claude_moved }}
@@ -137,6 +170,7 @@ jobs:
           git diff
           pins=
           if [ "$BASE_MOVED" = true ]; then pins="base to $BASE:$BASE_VERSION"; fi
+          if [ "$GO_MOVED" = true ]; then pins="${pins:+$pins, }Go to $GO_VERSION"; fi
           if [ "$REX_MOVED" = true ]; then pins="${pins:+$pins, }Rex to $REX_VERSION"; fi
           if [ "$CLAUDE_MOVED" = true ]; then pins="${pins:+$pins, }Claude Code to $CLAUDE_VERSION"; fi
           git config user.name 'forgejo-actions'
@@ -147,7 +181,7 @@ jobs:
       # no longer grants fails the day it stops, not on the next move.
       - name: Push
         env:
-          MOVED: ${{ steps.base.outputs.moved == 'true' || steps.pkg.outputs.rex_moved == 'true' || steps.pkg.outputs.claude_moved == 'true' }}
+          MOVED: ${{ steps.base.outputs.moved == 'true' || steps.go.outputs.moved == 'true' || steps.pkg.outputs.rex_moved == 'true' || steps.pkg.outputs.claude_moved == 'true' }}
           AUDIENCE: ${{ vars.RENOVATE_AUDIENCE }}
         run: |
           jwt=$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \

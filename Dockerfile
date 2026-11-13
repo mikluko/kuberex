@@ -2,7 +2,10 @@
 #
 # Build:  container build -t kuberex .
 
-FROM --platform=$BUILDPLATFORM golang:1.27.2-trixie AS build
+# The Go that builds kuberexctl and that the image ships.
+ARG GO_VERSION=1.27.2
+
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-trixie AS build
 ARG TARGETOS TARGETARCH
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -11,6 +14,8 @@ COPY cmd/ cmd/
 COPY internal/ internal/
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -trimpath -o /out/ ./cmd/kuberexctl
+
+FROM golang:${GO_VERSION}-trixie AS go
 
 FROM debian:trixie-20261104
 
@@ -32,7 +37,7 @@ RUN --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update -yq && \
     apt-get install -y --no-install-recommends \
         ca-certificates dumb-init util-linux libpam0g libpam-tmpdir locales zsh \
-        build-essential git openssh-client golang nodejs npm \
+        build-essential git openssh-client nodejs npm \
         curl wget jq less vim procps iproute2 iputils-ping dnsutils unzip xz-utils file \
         htop mc ripgrep fd-find fzf tree bat rsync zip ncdu
 
@@ -44,6 +49,9 @@ RUN --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update -yq && \
     apt-get install -y --no-install-recommends \
         "rex=$REX_VERSION" "claude-code=$CLAUDE_CODE_VERSION"
+
+COPY --from=go /usr/local/go/ /usr/local/go/
+RUN ln -s ../go/bin/go ../go/bin/gofmt /usr/local/bin/
 
 COPY rootfs/ /
 COPY --from=build /out/kuberexctl /usr/local/bin/

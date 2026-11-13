@@ -46,7 +46,7 @@ A pull request that widens any of this says why in its description.
 
 ## Pins
 
-The renovate workflow moves `FROM`, `REX_VERSION` and `CLAUDE_CODE_VERSION` in the `Dockerfile` daily.
+The renovate workflow moves the Debian `FROM`, `GO_VERSION`, `REX_VERSION` and `CLAUDE_CODE_VERSION` in the `Dockerfile` daily.
 A pull request that moves one by hand says why.
 
 ## Downstream
