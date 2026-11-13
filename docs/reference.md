@@ -25,15 +25,16 @@ An account receiving [server-managed settings](https://code.claude.com/docs/en/s
 
 ### Entrypoint
 
-The entrypoint starts [`rex login-server`](https://www.superlogical.com/rex/docs/linux/login-server.md) on the tailnet through a `tailscaled` already on it.
+The entrypoint starts [`rex login-server`](https://www.superlogical.com/rex/docs/linux/login-server.md) on the tailnet through a `tailscaled` already on it, on a [plain HTTP listener](#plain-http-listener), or on both.
 It must run as root, with the capabilities `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `KILL`, `SETGID` and `SETUID`, on a writable root filesystem.
 It reads:
 
 | Variable                    | Meaning                                                                          |
 | --------------------------- | -------------------------------------------------------------------------------- |
 | `REX_LOGIN_SERVER_ACCOUNTS` | path of the login server's [accounts file](https://www.superlogical.com/rex/docs/linux/login-server.md#accounts-file); required |
-| `TS_SOCKET`                 | LocalAPI socket of the `tailscaled`; required                                     |
-| `REX_TAILNET_PORT`          | tailnet port the login server serves plain HTTP on; default `80`                  |
+| `TS_SOCKET`                 | LocalAPI socket of the `tailscaled`; required unless `REX_HTTP_LISTEN` is set     |
+| `REX_TAILNET_PORT`          | tailnet port the login server serves plain HTTP on; default `80`; used with `TS_SOCKET` |
+| `REX_HTTP_LISTEN`           | endpoint of a [plain HTTP listener](#plain-http-listener), such as `http://0.0.0.0:7000`; none when unset |
 | `KUBEREX_APT`               | directory of apt additions; none when unset                                       |
 | `KUBEREX_SECRETS`           | directory of [account Secrets](#account-secrets); none when unset                 |
 | `KUBEREX_SERVICES`          | [services file](#services); none when unset                                       |
@@ -59,6 +60,16 @@ At each start, in this order, it:
 Each account's server runs in a PAM session, where `pam_tmpdir` sets `TMPDIR` and `TMP` to `/tmp/user/<uid>`, a directory only the account can open.
 
 A client picks an account with `http://<account>@<host>:<port>`; without one, the file's `defaults` decide.
+
+### Plain HTTP Listener
+
+With `REX_HTTP_LISTEN` set, the login server also listens on that endpoint and admits anonymous callers (`--allow-anonymous`).
+`TS_SOCKET` may then be unset, for a container with no `tailscaled`; with both set, the tailnet and the plain listener both serve.
+With neither set, the entrypoint exits 1.
+
+Every connection to the plain listener gets full access to the account the accounts file maps the principal `anonymous` to; there is no other check.
+Publish its port on loopback only, such as `container run -p 127.0.0.1:7000:7000 …` with `REX_HTTP_LISTEN=http://0.0.0.0:7000`, and never on a network others reach.
+A client connects with `rex -S http://127.0.0.1:7000`.
 
 ### Account Secrets
 

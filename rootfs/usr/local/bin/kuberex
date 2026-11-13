@@ -1,11 +1,16 @@
 #!/bin/sh
-# kuberex starts the Rex login server on the tailnet. The login server serves
-# each caller from a Rex server running as the account its accounts file maps
-# the caller to. kuberex runs as root and reads:
+# kuberex starts the Rex login server on the tailnet, on a plain HTTP listener,
+# or both. The login server serves each caller from a Rex server running as the
+# account its accounts file maps the caller to. kuberex runs as root and reads:
 #
 #   REX_LOGIN_SERVER_ACCOUNTS  the login server's accounts file
-#   TS_SOCKET                  LocalAPI socket of a tailscaled on the tailnet
+#   TS_SOCKET                  LocalAPI socket of a tailscaled on the tailnet;
+#                              required unless REX_HTTP_LISTEN is set
 #   REX_TAILNET_PORT           tailnet port of the server (default 80)
+#   REX_HTTP_LISTEN            optional endpoint of a plain HTTP listener, such
+#                              as http://0.0.0.0:7000, that admits anonymous
+#                              callers: every connection gets the account the
+#                              accounts file maps "anonymous" to
 #   KUBEREX_APT                optional directory of apt additions installed
 #                              before the server starts: *.sources files,
 #                              keyrings referenced by them, and a packages
@@ -125,8 +130,12 @@ if [ "$(id -u)" != 0 ]; then
   echo "kuberex: the login server runs as root" >&2
   exit 1
 fi
-if [ -z "${REX_LOGIN_SERVER_ACCOUNTS:-}" ] || [ -z "${TS_SOCKET:-}" ]; then
-  echo "kuberex: REX_LOGIN_SERVER_ACCOUNTS and TS_SOCKET are required" >&2
+if [ -z "${REX_LOGIN_SERVER_ACCOUNTS:-}" ]; then
+  echo "kuberex: REX_LOGIN_SERVER_ACCOUNTS is required" >&2
+  exit 1
+fi
+if [ -z "${TS_SOCKET:-}" ] && [ -z "${REX_HTTP_LISTEN:-}" ]; then
+  echo "kuberex: set TS_SOCKET to serve on the tailnet, REX_HTTP_LISTEN to serve on plain HTTP, or both" >&2
   exit 1
 fi
 
@@ -162,12 +171,14 @@ fi
 if [ -n "${KUBEREX_SERVICES:-}" ]; then
   (kuberexctl services "$KUBEREX_SERVICES" &)
 fi
-rex login-server \
-  --accounts "$REX_LOGIN_SERVER_ACCOUNTS" \
-  --runtime-root /run/rex \
-  --extra-listen "tailnet://:${REX_TAILNET_PORT:-80}" \
-  --tailscaled-socket "$TS_SOCKET" \
-  --log-format text &
+set -- --accounts "$REX_LOGIN_SERVER_ACCOUNTS" --runtime-root /run/rex --log-format text
+if [ -n "${TS_SOCKET:-}" ]; then
+  set -- "$@" --extra-listen "tailnet://:${REX_TAILNET_PORT:-80}" --tailscaled-socket "$TS_SOCKET"
+fi
+if [ -n "${REX_HTTP_LISTEN:-}" ]; then
+  set -- "$@" --extra-listen "$REX_HTTP_LISTEN" --allow-anonymous
+fi
+rex login-server "$@" &
 login_server=$!
 # dumb-init forwards a signal to this process too; the login server is the
 # one it is meant for, SIGHUP reloading its accounts file.

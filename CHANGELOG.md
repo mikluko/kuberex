@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `REX_HTTP_LISTEN`: an endpoint such as `http://0.0.0.0:7000` for a plain HTTP login server listener that admits anonymous callers, so the image runs with no `tailscaled`. `TS_SOCKET` is required only when it is unset; with both set, both serve. Publish its port on loopback only.
+
 ## [0.28.0] - 2026-11-13
 
 ### Changed
