@@ -7,11 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-11-13
+
 ### Changed
 
 - The release and test workflows read the changelog with the 2.x validate
   action, `changelog/actions/validate@v2`, so `due` stays false while the
   newest untagged entry is not dated the day its tag would carry.
+- Rex is `0.0.1794546118-g228358`.
 
 ## [0.27.0] - 2026-11-12
 
