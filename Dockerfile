@@ -3,7 +3,7 @@
 # Build:  container build -t kuberex .
 
 # The Go that builds kuberexctl and that the image ships.
-ARG GO_VERSION=1.27.2
+ARG GO_VERSION=1.27.4
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-trixie AS build
 ARG TARGETOS TARGETARCH
@@ -21,7 +21,7 @@ FROM debian:trixie-20261104
 
 # Rex and Claude Code versions the image ships. Rex's snapshot index keeps
 # only its newest builds, so a stale REX_VERSION stops the image building.
-ARG REX_VERSION=0.0.1794546118-g228358
+ARG REX_VERSION=0.0.1794604880-ge4e811
 ARG CLAUDE_CODE_VERSION=2.1.311-1
 
 ARG DEBIAN_FRONTEND=noninteractive

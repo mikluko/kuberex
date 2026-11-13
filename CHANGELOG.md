@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-11-13
+
 ### Changed
 
 - The image ships Go at the version `GO_VERSION` pins in the `Dockerfile`,
@@ -14,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `go` and `gofmt` linked in `/usr/local/bin`. It replaces Debian's `golang`
   package, Go 1.24 in `/usr/lib/go`. The renovate workflow moves the pin to
   the newest Go that image carries for amd64 and arm64.
+- Go is `1.27.4`.
+- Rex is `0.0.1794604880-ge4e811`.
 
 ## [0.29.0] - 2026-11-13
 
