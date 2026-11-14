@@ -2,12 +2,25 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended", "customManagers:dockerfileVersions"],
   "dependencyDashboard": false,
-  "enabledManagers": ["dockerfile", "custom.regex"],
+  "enabledManagers": ["dockerfile", "custom.regex", "gomod"],
+  "platformAutomerge": false,
+  "automergeStrategy": "squash",
+  "schedule": ["* 0-22 * * *"],
+  "postUpgradeTasks": {
+    "commands": [
+      "go tool changelog append -section=Changed -note \"Pinned: {{#each upgrades}}{{{depName}}} `{{{newValue}}}`{{#unless @last}}, {{/unless}}{{/each}}.\"",
+      "go tool changelog release -fragments="
+    ],
+    "fileFilters": ["CHANGELOG.md"],
+    "executionMode": "branch",
+    "installTools": { "golang": {} }
+  },
   "packageRules": [
     {
-      "description": "Every pin of the image moves in one pull request, so one release carries them all.",
+      "description": "Every pin moves in one pull request, and that pull request is the release: postUpgradeTasks notes the pins in CHANGELOG.md and cuts the version, and the merge starts the release workflow. Renovate merges it itself, on a run that finds every check of the test workflow green. platformAutomerge is off because Renovate promises that only of its own automerge: a platform's, on a branch with no required checks, may merge sooner. The schedule opens no pull request in the last hour of the UTC day: the version is dated when it is cut, and the release workflow publishes nothing dated another day than its merge.",
       "matchManagers": ["dockerfile", "custom.regex"],
-      "groupName": "image pins"
+      "groupName": "pins",
+      "automerge": true
     },
     {
       "description": "The base is a dated snapshot, trixie-YYYYMMDD. Renovate's debian versioning reads the codename as release 13 and drops the date.",
@@ -19,6 +32,35 @@
       "description": "GO_VERSION is pinned in an ARG, which the annotation above it moves; the dockerfile manager sees the same pin through the FROM lines and cannot write it.",
       "matchManagers": ["dockerfile"],
       "matchPackageNames": ["golang"],
+      "enabled": false
+    },
+    {
+      "description": "Of go.mod Renovate moves the changelog tool and the go directive, below; the rest of it is not Renovate's.",
+      "matchManagers": ["gomod"],
+      "enabled": false
+    },
+    {
+      "description": "The changelog tool that postUpgradeTasks runs is a tool of go.mod. It is no part of the image: its move is a pull request of its own, with no changelog entry and no release, and since no check runs the tool, a person merges it.",
+      "matchManagers": ["gomod"],
+      "matchPackageNames": ["sarak.sh/mikluko/changelog/v2"],
+      "enabled": true,
+      "postUpdateOptions": ["gomodTidy"],
+      "postUpgradeTasks": { "commands": [] }
+    },
+    {
+      "description": "The go directive follows Go's patch releases and is one of the pins: it moves in their pull request and their release. The test workflow gates it: it vets and tests with the Go the directive names, and its image build fails while the directive is ahead of GO_VERSION.",
+      "matchManagers": ["gomod"],
+      "matchDepNames": ["go"],
+      "matchDepTypes": ["golang"],
+      "enabled": true,
+      "rangeStrategy": "bump",
+      "groupName": "pins",
+      "automerge": true
+    },
+    {
+      "description": "In go.mod Renovate moves patches only: a new minor or major, of Go or of the changelog tool, is a person's decision.",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["major", "minor"],
       "enabled": false
     }
   ]
