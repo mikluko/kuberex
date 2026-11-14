@@ -23,7 +23,7 @@ FROM debian:trixie-20261104
 # Rex and Claude Code versions the image ships. Rex's snapshot index keeps
 # only its newest builds, so a stale REX_VERSION stops the image building.
 # renovate: datasource=deb depName=rex registryUrl=https://pkgs.superlogical.com/rex/apt?suite=snapshot&components=main&binaryArch=amd64
-ARG REX_VERSION=0.0.1794632741-g1555b2
+ARG REX_VERSION=0.0.1794667871-gd7a193
 # renovate: datasource=deb depName=claude-code registryUrl=https://downloads.claude.ai/claude-code/apt/stable?suite=stable&components=main&binaryArch=amd64
 ARG CLAUDE_CODE_VERSION=2.1.311-1
 
