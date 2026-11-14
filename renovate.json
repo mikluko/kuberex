@@ -6,6 +6,8 @@
   "platformAutomerge": false,
   "automergeStrategy": "squash",
   "schedule": ["* 0-22 * * *"],
+  "description": "constraints.golang is an exact version so that Renovate installs the Go that postUpgradeTasks need without looking its releases up on GitHub, which takes a token Renovate here does not have.",
+  "constraints": { "golang": "1.27.4" },
   "postUpgradeTasks": {
     "commands": [
       "go tool changelog append -section=Changed -note \"Pinned: {{#each upgrades}}{{{depName}}} `{{{newValue}}}`{{#unless @last}}, {{/unless}}{{/each}}.\"",
