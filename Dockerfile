@@ -3,6 +3,7 @@
 # Build:  container build -t kuberex .
 
 # The Go that builds kuberexctl and that the image ships.
+# renovate: datasource=docker depName=golang extractVersion=^(?<version>\d+\.\d+\.\d+)-trixie$
 ARG GO_VERSION=1.27.4
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-trixie AS build
@@ -21,7 +22,9 @@ FROM debian:trixie-20261104
 
 # Rex and Claude Code versions the image ships. Rex's snapshot index keeps
 # only its newest builds, so a stale REX_VERSION stops the image building.
+# renovate: datasource=deb depName=rex registryUrl=https://pkgs.superlogical.com/rex/apt?suite=snapshot&components=main&binaryArch=amd64
 ARG REX_VERSION=0.0.1794604880-ge4e811
+# renovate: datasource=deb depName=claude-code registryUrl=https://downloads.claude.ai/claude-code/apt/stable?suite=stable&components=main&binaryArch=amd64
 ARG CLAUDE_CODE_VERSION=2.1.311-1
 
 ARG DEBIAN_FRONTEND=noninteractive

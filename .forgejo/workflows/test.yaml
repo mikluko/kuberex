@@ -73,3 +73,16 @@ jobs:
         with:
           fragments: ""
           warn: date-mismatch
+
+  # Builds the image for both architectures without pushing it: a pin one
+  # architecture lacks, or a package apt cannot verify, fails in the pull
+  # request and not at the release.
+  image:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: https://github.com/actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Build for amd64 and arm64
+        run: docker buildx build --platform linux/amd64,linux/arm64 --progress plain .

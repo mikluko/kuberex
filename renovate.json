@@ -1,0 +1,25 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "customManagers:dockerfileVersions"],
+  "dependencyDashboard": false,
+  "enabledManagers": ["dockerfile", "custom.regex"],
+  "packageRules": [
+    {
+      "description": "Every pin of the image moves in one pull request, so one release carries them all.",
+      "matchManagers": ["dockerfile", "custom.regex"],
+      "groupName": "image pins"
+    },
+    {
+      "description": "The base is a dated snapshot, trixie-YYYYMMDD. Renovate's debian versioning reads the codename as release 13 and drops the date.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["debian"],
+      "versioning": "regex:^(?<compatibility>trixie)-(?<major>\\d{4})(?<minor>\\d{2})(?<patch>\\d{2})$"
+    },
+    {
+      "description": "GO_VERSION is pinned in an ARG, which the annotation above it moves; the dockerfile manager sees the same pin through the FROM lines and cannot write it.",
+      "matchManagers": ["dockerfile"],
+      "matchPackageNames": ["golang"],
+      "enabled": false
+    }
+  ]
+}
