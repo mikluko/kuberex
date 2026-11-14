@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-11-14
+
+### Changed
+
+- Pinned: go `1.27.4`, rex `0.0.1794632741-g1555b2`.
+
 ## [0.30.0] - 2026-11-13
 
 ### Changed

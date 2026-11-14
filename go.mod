@@ -1,6 +1,6 @@
 module sarak.sh/mikluko/kuberex
 
-go 1.27.2
+go 1.27.4
 
 require github.com/tailscale/hujson v0.0.0-20260727124030-b80ff77dac4f
 
