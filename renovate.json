@@ -40,10 +40,11 @@
       "enabled": false
     },
     {
-      "description": "The changelog tool that postUpgradeTasks runs is a tool of go.mod. It is no part of the image: its move is a pull request of its own, with no changelog entry and no release, and since no check runs the tool, a person merges it.",
+      "description": "The changelog tool that postUpgradeTasks runs is a tool of go.mod. It is no part of the image: its move is a pull request of its own, with no changelog entry and no release. Renovate merges it on green checks like the pins, though no check runs the tool.",
       "matchManagers": ["gomod"],
       "matchPackageNames": ["sarak.sh/mikluko/changelog/v2"],
       "enabled": true,
+      "automerge": true,
       "postUpdateOptions": ["gomodTidy"],
       "postUpgradeTasks": { "commands": [] }
     },
